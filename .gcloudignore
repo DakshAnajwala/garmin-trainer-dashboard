@@ -1,0 +1,16 @@
+# Controls what `gcloud run deploy --source .` uploads for the Cloud Build.
+# Deliberately narrower than .gitignore: data/secrets.enc.json (RSA
+# ciphertext — meaningless without the private key, which is never uploaded
+# and lives only in Secret Manager) needs to ship in the image, so we can't
+# just reuse the blanket `data/` exclusion from .gitignore.
+.git/
+.gitignore
+.venv/
+node_modules/
+frontend/node_modules/
+frontend/dist/
+__pycache__/
+*.pyc
+.env
+data/local_store.json
+check_*.mjs

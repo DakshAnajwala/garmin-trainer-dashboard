@@ -1,0 +1,36 @@
+{
+  "_comment": "Copy this file to athlete_profile.json (same folder) and replace every value with your own. athlete_profile.json is gitignored. These are illustrative placeholder numbers for a ~70kg recreational rider — they are NOT anyone's real data, and every W/kg, zone and coaching answer will be wrong until you replace them.",
+
+  "power_curve_seconds": {
+    "1": 900,
+    "15": 650,
+    "30": 480,
+    "60": 380,
+    "120": 300,
+    "300": 250,
+    "600": 230,
+    "3600": 195
+  },
+
+  "_comment_unverified": "Durations you have NOT tested as a true maximal effort. The UI marks these with a hollow marker so you don't read them as real.",
+  "power_curve_unverified": [300],
+
+  "_comment_ftp": "FTP = ftp_test_factor x your best 20min power. 0.95 is the standard convention.",
+  "ftp_test_factor": 0.95,
+  "ftp_test_history": [
+    { "date": "2026-01-15", "power_20min_w": 250 },
+    { "date": "2026-03-15", "power_20min_w": 262 }
+  ],
+
+  "_comment_limiter": "Your self-identified weakness. Drives the weekly limiter-day session and the coach's focus.",
+  "limiter": "1-5min power (anaerobic capacity / VO2max durability)",
+
+  "max_hr_bpm": [190, 195],
+  "lthr_bpm": 172,
+
+  "_comment_floor_weight": "The lowest weight you consider healthy for yourself. Used as a guard rail, not a target.",
+  "floor_weight_kg": 65.0,
+
+  "_comment_coach": "Free text injected into the AI coach's system prompt. Tell it who you are, your schedule, and anything it must never suggest (e.g. 'I'm gaining weight on purpose — never tell me to cut', or 'Saturday's group ride is non-negotiable'). Be specific: this is the whole difference between generic advice and advice that knows you. Your W/kg goal, limiter, max HR and LTHR are injected automatically from TARGET_WKG and the fields above — no need to repeat them.",
+  "coach_context": "About me:\n- Recreational cyclist, riding ~8h/week.\n- Weekly schedule: Mon rest, Tue endurance, Wed intervals (limiter day), Thu endurance, Fri easy/rest, Sat group ride, Sun long ride. Recovery week every 4th week.\n- Overreaching flags for me: elevated resting HR, poor sleep.\n\nTone: data-driven, but encouraging on bad-data days rather than purely blunt."
+}

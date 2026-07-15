@@ -1,0 +1,27 @@
+# Secrets & personal data — never commit
+.env
+frontend/.env.local
+config/athlete_profile.json
+deploy/env.yaml
+firebase-credentials.json
+*.pem
+
+# Local data store, cache, encrypted secrets
+data/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+frontend/dist/
+
+# macOS / IDE / logs
+.DS_Store
+.idea/
+*.log
+
+# Internal working notes (contain personal training numbers)
+batch_*_assumptions.md
