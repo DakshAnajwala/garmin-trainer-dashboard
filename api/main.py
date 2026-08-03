@@ -1317,9 +1317,27 @@ async def day_suggestions(plan_date: str, ai: bool = False) -> dict[str, Any]:
                 ", ".join(f"{d}: {w.get('title')}" for d, w in sorted(planned_this_week.items()))
                 or "nothing planned yet"
             )
-            enriched = ai_day_planner.enrich(
-                lead.workout_type, lead.reason, week_summary, weakest, lead.workout_type,
-            )
+            # This is a real Anthropic call (multiple seconds) for one line of
+            # rewritten prose. Cached by everything the prompt actually depends
+            # on, so re-opening the same day's suggestions doesn't re-pay that
+            # cost — same TTL as the rest of today's data, since the inputs
+            # (readiness, this week's sessions) can change during the day.
+            cache_key = f"ai_daysuggest:{target_date.isoformat()}:{lead.workout_type}:{weakest}:{week_summary}"
+            cached_ai = local_store.get_cached_query(cache_key)
+            # A successful enrichment is cached for the rest of today's TTL; a
+            # FAILED one (invalid key, network error, rate limit) is cached only
+            # briefly — long enough that repeatedly clicking "write this up"
+            # with a broken key doesn't re-pay a multi-second failed network
+            # round trip each time, short enough that fixing the key during the
+            # day starts working again without a backend restart.
+            cache_ttl = _TODAY_TTL_SECONDS if (cached_ai and cached_ai.get("ai_used")) else 60
+            if cached_ai and time.time() - cached_ai.get("cached_at", 0) < cache_ttl:
+                enriched = cached_ai
+            else:
+                enriched = ai_day_planner.enrich(
+                    lead.workout_type, lead.reason, week_summary, weakest, lead.workout_type,
+                )
+                local_store.cache_query(cache_key, enriched)
             ai_used = enriched["ai_used"]
             ai_message = enriched["ai_unavailable_message"]
             if ai_used:

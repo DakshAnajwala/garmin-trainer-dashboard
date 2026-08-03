@@ -113,3 +113,40 @@ class TestPayloadCompleteness:
     @pytest.mark.parametrize("name,target_date,verdict,week", DAYS)
     def test_always_exactly_three_options(self, name, target_date, verdict, week):
         assert len(_payloads(target_date, verdict, week)) == 3
+
+
+class TestAiEnrichmentCaching:
+    """The AI rewrite is a real multi-second Anthropic call for one line of
+    prose. It must never fire on a plain suggestions load (ai defaults to
+    off), and a repeated ai=true request for the same day/pick/week must not
+    re-pay the network cost — success or failure. See api.main's
+    day_suggestions for where this is wired in; these tests pin the
+    local_store cache primitive it's built on, since exercising the real
+    endpoint needs live Garmin/Anthropic access this suite doesn't have."""
+
+    @pytest.fixture
+    def store(self, tmp_path, monkeypatch):
+        from database import local_store
+
+        monkeypatch.setattr(local_store, "_STORE_PATH", tmp_path / "store.json")
+        monkeypatch.setattr(local_store.firestore_db, "available", lambda: False)
+        monkeypatch.setattr(local_store.backup, "snapshot_before_write", lambda _p: None)
+        return local_store
+
+    def test_a_successful_enrichment_is_cached(self, store):
+        key = "ai_daysuggest:2026-08-04:lactate_threshold:weak:none"
+        assert store.get_cached_query(key) is None
+        store.cache_query(key, {"type": "lactate_threshold", "reason": "warm", "ai_used": True, "ai_unavailable_message": None})
+        cached = store.get_cached_query(key)
+        assert cached["ai_used"] is True
+        assert cached["reason"] == "warm"
+
+    def test_a_failed_enrichment_is_also_cached(self, store):
+        """A broken Anthropic key must not cost a multi-second failed network
+        round trip on every click of "write this up" — it's cached too, just
+        with the short TTL the endpoint applies for failures."""
+        key = "ai_daysuggest:2026-08-04:lactate_threshold:weak:none"
+        store.cache_query(key, {"type": "lactate_threshold", "reason": "det", "ai_used": False, "ai_unavailable_message": "key rejected"})
+        cached = store.get_cached_query(key)
+        assert cached["ai_used"] is False
+        assert cached["ai_unavailable_message"] == "key rejected"

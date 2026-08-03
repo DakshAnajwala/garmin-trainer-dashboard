@@ -131,13 +131,17 @@ export default function TodaySuggestionPanel({ date, ftpWatts, onAdded }) {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pickingType, setPickingType] = useState(false);
+  const [rewriting, setRewriting] = useState(false);
 
+  // Deterministic by default — the AI pass is a real multi-second Anthropic
+  // call for one rewritten line, so it only runs when explicitly asked for
+  // (the "write it up" button below), never just because the panel opened.
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
     api
-      .daySuggestions(date, true)
+      .daySuggestions(date)
       .then((d) => !cancelled && setData(d))
       .catch((e) => !cancelled && setError(e.message))
       .finally(() => !cancelled && setLoading(false));
@@ -145,6 +149,17 @@ export default function TodaySuggestionPanel({ date, ftpWatts, onAdded }) {
       cancelled = true;
     };
   }, [date]);
+
+  const askForWriteup = async () => {
+    setRewriting(true);
+    try {
+      setData(await api.daySuggestions(date, true));
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setRewriting(false);
+    }
+  };
 
   if (loading) return <div className="loading">Working out what today should be…</div>;
   if (error) return <div className="error-box">Couldn't load suggestions: {error}</div>;
@@ -156,6 +171,14 @@ export default function TodaySuggestionPanel({ date, ftpWatts, onAdded }) {
         Three options for {date}. Nothing is scheduled until you add one.
         {data.readiness_verdict && data.readiness_verdict !== "UNKNOWN" && (
           <> Today's readiness reads <strong>{data.readiness_verdict}</strong>.</>
+        )}
+        {!data.ai_used && (
+          <>
+            {" "}
+            <button className="followup-btn" onClick={askForWriteup} disabled={rewriting} style={{ marginLeft: 4 }}>
+              {rewriting ? "Asking the coach…" : "✨ Ask the coach to write this up"}
+            </button>
+          </>
         )}
       </div>
 
