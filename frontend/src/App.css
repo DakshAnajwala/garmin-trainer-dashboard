@@ -172,11 +172,6 @@
   gap: 4px;
 }
 
-.morning-brief-verdict {
-  font-size: 18px;
-  font-weight: 700;
-}
-
 .morning-brief-session {
   color: var(--text-secondary);
   font-size: 13px;
@@ -1724,3 +1719,87 @@ h3 {
   padding-top: 4px;
   border-top: 1px solid var(--border);
 }
+
+/* --- "What should I do today?" suggestions ------------------------------- */
+
+.suggestion-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.suggestion-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.suggestion-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0; /* let long detail text wrap instead of widening the column */
+}
+
+/* The "why". Every recommendation in this app shows its reasoning; this is
+   that rule's styling for the suggestion cards. */
+.suggestion-reason {
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--blue) 6%, var(--surface));
+  border-left: 2px solid var(--blue);
+  border-radius: 0 6px 6px 0;
+  padding: 8px 10px;
+}
+
+.suggestion-ask {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.suggestion-card .modal-actions {
+  margin-top: auto; /* buttons align across cards of differing text length */
+}
+
+/* --- Weekly distance compliance ----------------------------------------- */
+
+.compliance-widget {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.compliance-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.compliance-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text-muted) 20%, var(--surface));
+  overflow: hidden;
+}
+
+.compliance-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.compliance-good { background: var(--good); }
+.compliance-blue { background: var(--blue); }
+.compliance-warning { background: var(--warning); }

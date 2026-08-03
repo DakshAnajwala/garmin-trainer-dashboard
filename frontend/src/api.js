@@ -43,6 +43,7 @@ export const api = {
   setBlockWeek: (block_week) =>
     request("/api/plan/block-week", { method: "POST", body: JSON.stringify({ block_week }) }),
   adaptiveRecommendation: () => request("/api/plan/adaptive-recommendation"),
+  planCompliance: () => request("/api/plan/compliance"),
   followups: () => request("/api/coach/followups"),
   analyzeDay: (date) => request(`/api/coach/analyze${date ? `?date=${date}` : ""}`, { method: "POST" }),
   chat: (messages, date) =>
@@ -91,6 +92,8 @@ export const api = {
   savePlanned: (date, workout) => request(`/api/planned/${date}`, { method: "PUT", body: JSON.stringify(workout) }),
   clearPlanned: (date) => request(`/api/planned/${date}`, { method: "DELETE" }),
   workoutTypeCatalog: () => request("/api/planned/workout-types"),
+  daySuggestions: (date, ai = false) =>
+    request(`/api/planned/${date}/suggestions${ai ? "?ai=true" : ""}`),
   coachPlanDay: (date, workoutType) =>
     request(`/api/planned/${date}/coach-plan`, { method: "POST", body: JSON.stringify({ workout_type: workoutType }) }),
   trajectory: (forecastDays = 365) => request(`/api/trajectory?forecast_days=${forecastDays}`),

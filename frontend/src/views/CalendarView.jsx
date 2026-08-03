@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import CoachPlanModal from "../components/CoachPlanModal";
 import PlannedWorkoutModal from "../components/PlannedWorkoutModal";
+import TodaySuggestionPanel from "../components/TodaySuggestionPanel";
 import { toIsoDateLocal } from "../dateUtils";
 import { useRedact } from "../redactContext";
 
@@ -63,6 +64,7 @@ export default function CalendarView() {
   const [modalDate, setModalDate] = useState(null); // which planned day's edit modal is open
   const [coachPlanDate, setCoachPlanDate] = useState(null); // which day's "let my coach plan" is open
   const [libraryOpenFor, setLibraryOpenFor] = useState(null); // which day's "add from library" picker is open
+  const [suggestFor, setSuggestFor] = useState(null); // which day's "what should I do?" panel is open
   const [library, setLibrary] = useState([]);
 
   useEffect(() => {
@@ -88,6 +90,10 @@ export default function CalendarView() {
   useEffect(() => {
     setError(null);
     setSelected(null);
+    // Clear the day-scoped panels too, or navigating away and back re-opens
+    // them on the same date without the athlete having asked.
+    setSuggestFor(null);
+    setLibraryOpenFor(null);
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monthDate]);
@@ -270,6 +276,13 @@ export default function CalendarView() {
             <div className="day-menu">
               <div className="caption">No planned session — what would you like to do?</div>
               <div className="day-menu-options">
+                <button
+                  className="primary-btn"
+                  onClick={() => setSuggestFor(suggestFor === selected ? null : selected)}
+                  disabled={busy}
+                >
+                  🧠 What should I do{selected === todayIso ? " today" : ""}?
+                </button>
                 <button className="followup-btn" onClick={() => addBlankWorkout(selected)} disabled={busy}>
                   📝 Add a workout
                 </button>
@@ -297,6 +310,17 @@ export default function CalendarView() {
                     </button>
                   ))}
                 </div>
+              )}
+
+              {suggestFor === selected && (
+                <TodaySuggestionPanel
+                  date={selected}
+                  ftpWatts={redacted ? null : ftpWatts}
+                  onAdded={async () => {
+                    setSuggestFor(null);
+                    await reload();
+                  }}
+                />
               )}
             </div>
           )}
