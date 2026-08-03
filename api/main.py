@@ -40,6 +40,7 @@ from services import gear as gear_service
 from services import intervals_icu, personal_records, ride_analysis, rider_profile, sample_cleaning, trajectory
 from services import app_settings, athlete as athlete_service, power_calibration, power_curve
 from services import ai_day_planner, custom_model, data_query, day_planner, model_backtest, physiology_model, plan_generator, plan_reflow, route_demand
+from services import training_compliance
 from services import workout_types
 from services.readiness import compute_verdict
 from services.training_plan import (
@@ -305,6 +306,13 @@ def _measured_ftp() -> Optional[dict[str, Any]]:
 def _resolved_ftp_watts(snapshot_dict: dict[str, Any]) -> Optional[float]:
     garmin_ftp_watts = (snapshot_dict.get("cycling_ftp") or {}).get("ftp_watts")
     return ftp_service.current_ftp(garmin_ftp_watts, _measured_ftp())["ftp_watts"]
+
+
+@app.get("/api/plan/compliance")
+async def plan_compliance() -> dict[str, Any]:
+    """This week's distance against the team's 300km/week minimum — separate
+    from the Saturday team ride itself. See services/training_compliance.py."""
+    return training_compliance.week_distance_km()
 
 
 @app.get("/api/plan/week")
@@ -1224,6 +1232,101 @@ async def coach_plan_day(plan_date: str, payload: DayPlanRequest) -> dict[str, A
             "steps": generated.steps,
             "source": "coach",
         },
+    }
+
+
+def _option_payload(option: day_planner.SuggestedOption) -> dict[str, Any]:
+    """One suggestion, serialized.
+
+    `workout` is a complete PlannedWorkoutModel body on purpose: "add to
+    calendar" is then a plain PUT /api/planned/{date} of exactly what was
+    previewed, with no second endpoint that could drift from what the athlete
+    was actually shown.
+    """
+    return {
+        "kind": option.kind,
+        "exclusive_with": option.exclusive_with,
+        "workout_type": option.workout_type,
+        "title": option.title,
+        "detail": option.detail,
+        "reason": option.reason,
+        "duration_min": option.duration_min,
+        "placement_warning": option.placement_warning,
+        "strength_focus": option.strength_focus,
+        "strength_log_type": option.strength_log_type,
+        "workout": {
+            "session_type": option.session_type,
+            "title": option.title,
+            "detail": option.detail,
+            "duration_min": option.duration_min,
+            "target_watts_low": option.target_watts_low,
+            "target_watts_high": option.target_watts_high,
+            "steps": option.steps,
+            "source": "coach",
+        },
+    }
+
+
+@app.get("/api/planned/{plan_date}/suggestions")
+async def day_suggestions(plan_date: str, ai: bool = False) -> dict[str, Any]:
+    """"What should I do today?" — three options for one day.
+
+    Deterministic by default. `ai=true` lets the AI layer rewrite the leading
+    option's rationale in the coach's voice; it can only re-rank within the
+    existing catalog and never invents a type, so the three options are the
+    same three either way. Everything still works with the Anthropic key
+    invalid, which is the whole reason the deterministic layer exists.
+
+    Returns previews only — nothing is saved until the athlete PUTs one.
+    """
+    target_date = _parse_date(plan_date)
+    snapshot_dict = await snapshot(plan_date)
+    ftp_watts = _resolved_ftp_watts(snapshot_dict)
+
+    monday = target_date - timedelta(days=target_date.weekday())
+    planned_this_week = local_store.get_planned_workouts(
+        monday.isoformat(), (monday + timedelta(days=6)).isoformat()
+    )
+
+    snapshot_obj = DailyHealthSnapshot.model_validate(snapshot_dict)
+    travel_window = travel_window_for(target_date, local_store.get_constraints())
+    traveling_note = f"{travel_window['start']} to {travel_window['end']}" if travel_window else None
+    verdict = compute_verdict(snapshot_obj, target_date, traveling_note)
+
+    weakest = await _weakest_coggan_zone()
+    gap_report = _nearest_race_gap_report()
+    options = day_planner.compose_three_options(
+        weakest, gap_report, planned_this_week, verdict.verdict, target_date, ftp_watts,
+    )
+
+    ai_used, ai_message = False, None
+    if ai:
+        # Only the leading bike option is enriched. The other two exist to give
+        # the athlete a real choice; letting the AI re-pick them as well would
+        # let it collapse three options into variations on one.
+        lead = next((o for o in options if o.kind == "bike" and o.workout_type), None)
+        if lead is not None:
+            week_summary = (
+                ", ".join(f"{d}: {w.get('title')}" for d, w in sorted(planned_this_week.items()))
+                or "nothing planned yet"
+            )
+            enriched = ai_day_planner.enrich(
+                lead.workout_type, lead.reason, week_summary, weakest, lead.workout_type,
+            )
+            ai_used = enriched["ai_used"]
+            ai_message = enriched["ai_unavailable_message"]
+            if ai_used:
+                lead.reason = enriched["reason"]
+
+    return {
+        "date": target_date.isoformat(),
+        "weakest_zone": weakest,
+        "weakest_zone_caveat": day_planner.soft_row_caveat(weakest),
+        "readiness_verdict": verdict.verdict,
+        "traveling": traveling_note,
+        "ai_used": ai_used,
+        "ai_unavailable_message": ai_message,
+        "options": [_option_payload(o) for o in options],
     }
 
 
