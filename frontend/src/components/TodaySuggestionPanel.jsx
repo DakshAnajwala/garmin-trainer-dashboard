@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import CoachPlanModal from "./CoachPlanModal";
 import WorkoutPreviewChart from "./WorkoutPreviewChart";
 import { useRedact, redactSensitiveText } from "../redactContext";
 
@@ -129,6 +130,7 @@ export default function TodaySuggestionPanel({ date, ftpWatts, onAdded }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [pickingType, setPickingType] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -167,8 +169,13 @@ export default function TodaySuggestionPanel({ date, ftpWatts, onAdded }) {
         )
       ) : (
         <div className="empty-note">
-          No weakness signal yet — log a weigh-in and an FTP test and these become targeted at your
-          actual limiter rather than general.
+          No weakness signal yet (log a weigh-in and an FTP test to get one) — so the bike option below
+          is a plain default, not a targeted pick. If you'd rather choose the type yourself instead of
+          taking the default,{" "}
+          <button className="followup-btn" onClick={() => setPickingType(true)} style={{ marginLeft: 4 }}>
+            pick a workout type
+          </button>
+          .
         </div>
       )}
 
@@ -196,6 +203,19 @@ export default function TodaySuggestionPanel({ date, ftpWatts, onAdded }) {
           />
         ))}
       </div>
+
+      {pickingType && (
+        <CoachPlanModal
+          date={date}
+          ftpWatts={ftpWatts}
+          onClose={() => setPickingType(false)}
+          onConfirm={async (d, workout) => {
+            await api.savePlanned(d, workout);
+            setPickingType(false);
+            onAdded?.();
+          }}
+        />
+      )}
     </div>
   );
 }
