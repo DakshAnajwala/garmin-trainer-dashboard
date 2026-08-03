@@ -23,11 +23,27 @@ def _activity_distances(activities: list[dict[str, Any]]) -> dict[str, float]:
 
 
 def resolve_gear_id(activity: dict[str, Any], assignments: dict[str, str], gear: list[dict[str, Any]]) -> Optional[str]:
-    """Explicit per-activity assignment wins; otherwise fall back to a gear
-    item marked as the default for this activity type."""
+    """Explicit per-activity assignment wins. Otherwise, a gear item mapped
+    to this activity's recording device (Garmin's real `deviceId` field) —
+    checked before activity-type, since a specific device is a stronger
+    signal than "any outdoor ride". Falls back to activity-type default.
+
+    Caveat kept honest in the UI: deviceId identifies the watch/head unit
+    that recorded the ride, not the bike — verified against real data that
+    one device recorded both indoor KICKR sessions and outdoor rides, so a
+    single unit clearly moves between bike and trainer. Useful only if your
+    own device usage happens to correlate with which bike you ride.
+    """
     explicit = assignments.get(str(activity.get("activity_id")))
     if explicit:
         return explicit
+
+    device_id = activity.get("device_id")
+    if device_id:
+        for g in gear:
+            if str(device_id) in [str(d) for d in (g.get("default_for_device_ids") or [])]:
+                return g["id"]
+
     activity_type = activity.get("type")
     for g in gear:
         if activity_type and activity_type in (g.get("default_for_types") or []):

@@ -1,14 +1,21 @@
 import { useState } from "react";
 import { api } from "../api";
+import { useUnits } from "../unitsContext";
+
+const KG_TO_LB = 2.20462;
 
 export default function WeightLogger({ latestWeight, onLogged }) {
-  const [value, setValue] = useState(latestWeight ?? 70.0);
+  const { imperial } = useUnits();
+  const toDisplay = (kg) => (imperial ? +(kg * KG_TO_LB).toFixed(1) : kg);
+  const toKg = (v) => (imperial ? v / KG_TO_LB : v);
+
+  const [value, setValue] = useState(toDisplay(latestWeight ?? 70.0));
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
     setSaving(true);
     try {
-      await api.logWeight(parseFloat(value));
+      await api.logWeight(toKg(parseFloat(value)));
       onLogged?.();
     } finally {
       setSaving(false);
@@ -18,12 +25,12 @@ export default function WeightLogger({ latestWeight, onLogged }) {
   return (
     <div className="weight-logger">
       <label>
-        Log today's weight (kg)
+        Log today's weight ({imperial ? "lb" : "kg"})
         <input
           type="number"
           step="0.1"
-          min="25"
-          max="200"
+          min={imperial ? 55 : 25}
+          max={imperial ? 440 : 200}
           value={value}
           onChange={(e) => setValue(e.target.value)}
         />

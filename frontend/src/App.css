@@ -161,6 +161,45 @@
   background: var(--surface);
 }
 
+/* --- Morning Brief: the 30-second card --- */
+.morning-brief {
+  padding: 18px 22px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--blue) 6%, var(--surface));
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.morning-brief-verdict {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.morning-brief-session {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.morning-brief-note {
+  font-size: 14px;
+  margin-top: 6px;
+}
+
+.brief-pr {
+  color: var(--good);
+  font-weight: 600;
+}
+
+.brief-note {
+  color: var(--text-secondary);
+}
+
+.brief-muted {
+  color: var(--text-muted);
+}
+
 .caption {
   color: var(--text-muted);
   font-size: 13px;
@@ -281,6 +320,65 @@ h3 {
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text-primary);
+}
+
+.adaptive-rec {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.adaptive-rec-actionable {
+  border-color: var(--blue);
+  background: color-mix(in srgb, var(--blue) 8%, var(--surface));
+}
+
+.adaptive-rec-text {
+  flex: 1;
+}
+
+.undo-panel {
+  position: relative;
+}
+
+.undo-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  width: 320px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.undo-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.undo-row:hover {
+  background: var(--page);
 }
 
 .plan-week {
@@ -895,9 +993,52 @@ h3 {
 }
 
 /* --- Export panel --- */
-.export-panel {
+.export-panel,
+.constraints-panel {
   border-top: 1px solid var(--border);
   padding-top: 12px;
+}
+
+.constraints-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.constraints-race {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.load-advisory {
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin-top: 4px;
+}
+
+.load-advisory-warning {
+  background: color-mix(in srgb, var(--warning) 15%, var(--surface));
+  color: var(--text-primary);
+}
+
+.load-advisory-info {
+  background: color-mix(in srgb, var(--blue) 10%, var(--surface));
+  color: var(--text-secondary);
+}
+
+.constraints-window {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 13px;
 }
 
 .export-panel-body {
@@ -1076,4 +1217,510 @@ h3 {
 
 .ride-coach .metric-card {
   width: 100%;
+}
+
+.debrief-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.debrief-box textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--page);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+
+/* ---- Power-exclusion panel (data-quality control on ride detail) ---- */
+
+.exclusion-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.exclusion-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.exclusion-toggle input {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+.exclusion-reason {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--page);
+  color: var(--text-primary);
+  font-size: 13px;
+  width: 100%;
+}
+
+.exclusion-ranges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.exclusion-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--page);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.exclusion-range button {
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+}
+
+.exclusion-range button:hover {
+  color: var(--critical);
+}
+
+/* ---- Feature 2: data-field hover/focus highlight ----
+   One shared class so every data surface (metric tiles, table cells, curve
+   points) lifts identically instead of each component inventing its own hover.
+   Keyboard focus gets the same treatment, not a lesser one — a keyboard user
+   needs the "which field am I on" cue at least as much as a mouse user.
+   Transitions are on the base rule so the field eases back out on leave too,
+   rather than snapping. */
+
+.data-field,
+.metric-card {
+  border-radius: 8px;
+  transition:
+    box-shadow 180ms ease-out,
+    background-color 180ms ease-out,
+    transform 180ms ease-out,
+    filter 180ms ease-out;
+}
+
+.data-field:hover,
+.data-field:focus-visible,
+.metric-card:hover,
+.metric-card:focus-visible {
+  background-color: color-mix(in srgb, var(--blue) 7%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--blue) 35%, transparent),
+    0 4px 14px color-mix(in srgb, var(--blue) 18%, transparent);
+  transform: translateY(-1px) scale(1.01);
+  filter: brightness(1.03);
+}
+
+.data-field:focus-visible,
+.metric-card:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* Honour a reduced-motion preference: keep the highlight (it's an
+   affordance, not decoration) but drop the movement that causes trouble. */
+@media (prefers-reduced-motion: reduce) {
+  .data-field,
+  .metric-card {
+    transition: box-shadow 1ms linear, background-color 1ms linear;
+  }
+  .data-field:hover,
+  .data-field:focus-visible,
+  .metric-card:hover,
+  .metric-card:focus-visible {
+    transform: none;
+  }
+}
+
+/* ---- Feature 3: streaming caret ----
+   Marks the live edge of a reply that's still arriving. Purely decorative, so
+   it's aria-hidden in the markup and disappears entirely for anyone who asked
+   for less motion — a blinking element is exactly what that setting is for. */
+
+.caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--blue);
+  animation: caret-blink 1s step-end infinite;
+}
+
+@keyframes caret-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .caret {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* ---- F6 model inspector ---- */
+
+.model-param {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.model-reasoning {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.model-override-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.model-override-form input {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--page);
+  color: var(--text-primary);
+  font-size: 13px;
+  width: 100%;
+}
+
+/* The inspector's cards carry a lot of prose — let them breathe wider than the
+   dense metric tiles the grid is tuned for. */
+.metric-grid .model-param {
+  grid-column: span 2;
+  min-width: 280px;
+}
+
+@media (max-width: 700px) {
+  .metric-grid .model-param {
+    grid-column: span 1;
+  }
+}
+
+/* ---- Coggan power-profile grid ---- */
+
+.coggan-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .coggan-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.coggan-chart,
+.coggan-summary {
+  min-width: 0;
+}
+
+.coggan-legend {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.coggan-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.coggan-legend-item.off {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+
+/* Hollow ring mirrors the chart's hollow markers, so identity never rests on
+   fill colour alone. */
+.coggan-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid;
+  flex-shrink: 0;
+}
+
+/* The table view is the required relief for the palette's contrast warning —
+   every number the chart plots is also readable as text here. */
+.coggan-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.coggan-table th,
+.coggan-table td {
+  text-align: left;
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.coggan-table thead th {
+  font-size: 12px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+}
+
+.coggan-table tbody th {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.coggan-table td {
+  font-variant-numeric: tabular-nums;
+}
+
+.coggan-flag {
+  color: var(--warning);
+  margin-left: 2px;
+}
+
+/* ---- Settings ---- */
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.settings-section > h3:first-child {
+  margin-top: 0;
+}
+
+.settings-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--page);
+}
+
+.settings-row-main {
+  flex: 1;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-row-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.settings-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.settings-row-actions input {
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+/* Header icon button (the settings cog). Square, quiet, and the same height as
+   its neighbours so the header reads as one row of controls. */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 150ms ease-out, border-color 150ms ease-out;
+}
+
+.icon-btn:hover {
+  background: color-mix(in srgb, var(--blue) 8%, var(--surface));
+}
+
+.icon-btn.active {
+  border-color: var(--blue);
+  background: color-mix(in srgb, var(--blue) 12%, var(--surface));
+}
+
+.icon-btn:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.calendar-day-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+/* ---- Modal (planned-workout editor) ---- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 5vh 16px;
+  z-index: 50;
+  overflow-y: auto;
+}
+
+.modal-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 20px;
+  width: min(640px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+}
+
+.modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.modal-field input,
+.modal-field select,
+.modal-field textarea {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--page);
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.modal-row {
+  display: flex;
+  gap: 12px;
+}
+.modal-row .modal-field {
+  flex: 1;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.planned-step-list {
+  margin: 4px 0;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.planned-step-list li {
+  padding: 3px 6px;
+  border-radius: 6px;
+}
+
+/* The planned chip is now a real button — strip the default button chrome so it
+   still looks like the calendar chip it replaced. */
+.calendar-chip-planned {
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  color: #fff;
+}
+
+.plan-card-clickable {
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  transition: border-color 150ms ease-out;
+}
+.plan-card-clickable:hover {
+  border-color: var(--blue);
+}
+
+.day-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.day-menu-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.day-menu-library {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
 }

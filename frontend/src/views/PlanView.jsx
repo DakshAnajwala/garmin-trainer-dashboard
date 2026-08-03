@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import AdaptiveRecommendation from "../components/AdaptiveRecommendation";
+import ConstraintsPanel from "../components/ConstraintsPanel";
+import ReflowPanel from "../components/ReflowPanel";
 import StrengthLog from "../components/StrengthLog";
 import { useRedact, redactSensitiveText } from "../redactContext";
 
@@ -14,6 +17,7 @@ const SESSION_BADGE = {
 };
 
 function SessionCard({ plan, isToday, redacted }) {
+  const advisory = plan.load_advisory;
   return (
     <div className={`plan-card ${isToday ? "plan-card-active" : ""}`}>
       <div className="plan-card-top">
@@ -25,6 +29,11 @@ function SessionCard({ plan, isToday, redacted }) {
       <div className="plan-card-title">{plan.title}</div>
       <div className="plan-card-detail">{redactSensitiveText(plan.detail, redacted)}</div>
       {plan.duration_min && <div className="plan-card-meta">~{plan.duration_min} min</div>}
+      {advisory?.flagged && (
+        <div className={`load-advisory load-advisory-${advisory.severity}`}>
+          ⚠️ {redactSensitiveText(advisory.message, redacted)}
+        </div>
+      )}
     </div>
   );
 }
@@ -76,8 +85,39 @@ export default function PlanView() {
         </label>
       </div>
 
+      <AdaptiveRecommendation onApplied={load} />
+
+      <ConstraintsPanel onChanged={load} />
+
+      <ReflowPanel />
+
       <h3>Today's session</h3>
+      {today.rationale && <div className="caption">Why: {redactSensitiveText(today.rationale, redacted)}</div>}
       <SessionCard plan={today} isToday={true} redacted={redacted} />
+      <div className="calendar-nav">
+        {today.decision ? (
+          <span className="caption">
+            You {today.decision.decision} today&apos;s session{today.decision.reason ? ` — "${today.decision.reason}"` : ""}.
+          </span>
+        ) : (
+          <>
+            <button className="followup-btn" onClick={async () => { await api.todayDecision({ decision: "accepted" }); load(); }}>
+              ✓ Accept
+            </button>
+            <button
+              className="followup-btn"
+              onClick={async () => {
+                const reason = window.prompt("Doing something different — what and why? (logged, not judged)");
+                if (!reason) return;
+                await api.todayDecision({ decision: "overridden", reason });
+                load();
+              }}
+            >
+              Override &amp; log why
+            </button>
+          </>
+        )}
+      </div>
 
       <h3>This week</h3>
       <div className="plan-week">

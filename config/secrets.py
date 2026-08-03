@@ -101,3 +101,14 @@ def decrypt(key_name: str) -> Optional[str]:
 
 def has(key_name: str) -> bool:
     return key_name in _load_secrets()
+
+
+def delete(key_name: str) -> bool:
+    """Revoke a stored secret. Returns whether anything was removed. The
+    ciphertext is dropped from disk, so revocation survives restarts."""
+    secrets = _load_secrets()
+    if key_name not in secrets:
+        return False
+    del secrets[key_name]
+    _save_secrets(secrets)
+    return True

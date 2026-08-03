@@ -12,13 +12,15 @@ const ACTIVITY_TYPES = [
   { key: "virtual_ride", label: "Virtual rides" },
 ];
 
-export default function GearView() {
+export default function GearManager() {
   const [gear, setGear] = useState([]);
+  const [devices, setDevices] = useState([]);
   const [form, setForm] = useState({ name: "", type: "bike", install_date: "", accumulated_distance_km: "", notes: "" });
 
   const refresh = () => api.listGear().then(setGear).catch(() => {});
   useEffect(() => {
     refresh();
+    api.activityDevices().then(setDevices).catch(() => {});
   }, []);
 
   const save = async () => {
@@ -48,6 +50,23 @@ export default function GearView() {
       install_date: g.install_date || null,
       accumulated_distance_km: g.manual_distance_km ?? 0,
       default_for_types: next,
+      default_for_device_ids: g.default_for_device_ids || [],
+      notes: g.notes || "",
+    });
+    refresh();
+  };
+
+  const toggleDefaultDevice = async (g, deviceId) => {
+    const current = g.default_for_device_ids || [];
+    const next = current.includes(deviceId) ? current.filter((d) => d !== deviceId) : [...current, deviceId];
+    await api.saveGear({
+      id: g.id,
+      name: g.name,
+      type: g.type,
+      install_date: g.install_date || null,
+      accumulated_distance_km: g.manual_distance_km ?? 0,
+      default_for_types: g.default_for_types || [],
+      default_for_device_ids: next,
       notes: g.notes || "",
     });
     refresh();
@@ -106,7 +125,7 @@ export default function GearView() {
               {g.install_date ? ` — installed ${g.install_date}` : ""}
             </div>
             <div className="gear-defaults">
-              <span className="caption">Auto-claim:</span>
+              <span className="caption">Auto-claim by ride type:</span>
               {ACTIVITY_TYPES.map((t) => (
                 <label key={t.key} className="export-category-item">
                   <input
@@ -118,6 +137,24 @@ export default function GearView() {
                 </label>
               ))}
             </div>
+            {devices.length > 0 && (
+              <div className="gear-defaults">
+                <span className="caption">
+                  Auto-claim by recording device (identifies the watch/head unit, not the bike — only useful if your
+                  device happens to match your bike):
+                </span>
+                {devices.map((d) => (
+                  <label key={d.device_id} className="export-category-item">
+                    <input
+                      type="checkbox"
+                      checked={(g.default_for_device_ids || []).includes(d.device_id)}
+                      onChange={() => toggleDefaultDevice(g, d.device_id)}
+                    />
+                    Device {d.device_id} ({d.count} rides, e.g. "{d.sample_name}")
+                  </label>
+                ))}
+              </div>
+            )}
             {g.notes && <div className="plan-card-meta">{g.notes}</div>}
           </div>
         ))}

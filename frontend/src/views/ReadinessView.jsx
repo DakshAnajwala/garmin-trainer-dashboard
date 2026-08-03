@@ -3,24 +3,44 @@ import { api } from "../api";
 import { colors } from "../theme";
 import ReadinessGauge from "../components/ReadinessGauge";
 import VerdictBanner from "../components/VerdictBanner";
+import MorningBrief from "../components/MorningBrief";
 import MetricCard from "../components/MetricCard";
 import BarChart from "../components/BarChart";
 import WeightLogger from "../components/WeightLogger";
+import WeightTrendChart from "../components/WeightTrendChart";
+import TimeRangePicker from "../components/TimeRangePicker";
+import { toIsoDateLocal } from "../dateUtils";
 import { useRedact } from "../redactContext";
+
+function defaultRange() {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(start.getDate() - 30);
+  return { start: toIsoDateLocal(start), end: toIsoDateLocal(end) };
+}
 
 export default function ReadinessView() {
   const { redacted } = useRedact();
   const [data, setData] = useState(null);
   const [weightHistory, setWeightHistory] = useState([]);
+  const [fullWeightHistory, setFullWeightHistory] = useState([]);
+  const [weightRange, setWeightRange] = useState(defaultRange);
   const [prs, setPrs] = useState(null);
   const [error, setError] = useState(null);
 
   const load = async () => {
     setError(null);
     try {
-      const [readiness, weights] = await Promise.all([api.readiness(), api.weightHistory(1)]);
+      // The trend chart came over from the old Overview page: logging a weight
+      // and seeing where it's going belong on one screen, not two tabs apart.
+      const [readiness, weights, fullWeights] = await Promise.all([
+        api.readiness(),
+        api.weightHistory(1),
+        api.weightHistory(180),
+      ]);
       setData(readiness);
       setWeightHistory(weights);
+      setFullWeightHistory(fullWeights);
       api.personalRecords().then(setPrs).catch(() => {});
     } catch (e) {
       setError(e.message);
@@ -36,11 +56,15 @@ export default function ReadinessView() {
 
   const { snapshot, verdict } = data;
   const latestWeight = weightHistory.length ? weightHistory[weightHistory.length - 1][1] : null;
+  const filteredWeightHistory = fullWeightHistory.filter(
+    ([date]) => date >= weightRange.start && date <= weightRange.end
+  );
   const ftpWatts = data.current_ftp?.ftp_watts;
   const currentWkg = latestWeight && ftpWatts ? (ftpWatts / latestWeight).toFixed(2) : null;
 
   return (
     <div className="view-grid">
+      <MorningBrief />
       <div className="gauge-row">
         <ReadinessGauge score={snapshot.training_readiness?.readiness_score} verdictLabel={verdict.verdict} />
         <VerdictBanner verdict={verdict} />
@@ -121,6 +145,18 @@ export default function ReadinessView() {
           </>
         )}
       </div>
+
+      {!redacted && (
+        <>
+          <h3>Weight trend</h3>
+          <TimeRangePicker onChange={setWeightRange} defaultPreset="1M" />
+          {filteredWeightHistory.length >= 2 ? (
+            <WeightTrendChart history={filteredWeightHistory} />
+          ) : (
+            <div className="empty-note">Not enough logged weight in this range yet.</div>
+          )}
+        </>
+      )}
     </div>
   );
 }

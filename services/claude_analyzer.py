@@ -12,6 +12,7 @@ import anthropic
 
 from config.athlete_profile import COACH_CONTEXT, FTP_TEST_FACTOR, LIMITER, LTHR_BPM, MAX_HR_BPM
 from config.settings import settings
+from database import local_store
 from garmin_mcp.schemas import DailyHealthSnapshot
 
 SUGGESTED_FOLLOWUPS = [
@@ -63,8 +64,29 @@ def _client() -> anthropic.Anthropic:
     return anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
 
+def _constraints_context(today) -> Optional[str]:
+    """Race date / travel windows the athlete declared — so the coach reasons
+    about the plan given real constraints instead of physiology alone."""
+    constraints = local_store.get_constraints()
+    lines = []
+    if constraints.get("race_date"):
+        from datetime import date as date_
+
+        days_out = (date_.fromisoformat(constraints["race_date"]) - today).days
+        if days_out >= 0:
+            lines.append(f"Race day: {constraints['race_date']} ({days_out} days from today).")
+    for window in constraints.get("travel_windows", []):
+        if window.get("start") and window.get("end") and window["start"] <= today.isoformat() <= window["end"]:
+            lines.append(f"Currently traveling ({window['start']} to {window['end']}): {window.get('note', '')}")
+    return "\n".join(lines) if lines else None
+
+
 def _snapshot_context(snapshot: DailyHealthSnapshot, weight_kg: Optional[float]) -> str:
     lines = [f"Today's date: {snapshot.date} ({snapshot.date.strftime('%A')})"]
+
+    constraints_text = _constraints_context(snapshot.date)
+    if constraints_text:
+        lines.append(constraints_text)
 
     if snapshot.training_readiness:
         r = snapshot.training_readiness
@@ -204,23 +226,34 @@ def analyze_ride(
     splits: list[dict[str, Any]],
     decoupling: dict[str, Any],
     ftp_watts: Optional[float] = None,
+    debrief_text: Optional[str] = None,
 ) -> str:
     context = _ride_context(activity, splits, decoupling, ftp_watts)
+    if debrief_text:
+        # The whole point of the debrief: reconcile what the numbers say
+        # against what it actually felt like, not just report the numbers a
+        # second time in prose. RPE trapped in a notes field nobody reads is
+        # exactly the gap this closes.
+        instruction = (
+            f"Here is one specific ride of mine:\n\n{context}\n\n"
+            f'Here\'s how it felt to me, in my own words: "{debrief_text}"\n\n'
+            "Reconcile what I said against what the data says — do they agree, or is there a "
+            "mismatch worth flagging (e.g. I said it felt easy but decoupling/HR drift says "
+            "otherwise, or vice versa)? Then give me what it means for my training. Be specific "
+            "and concise. If a metric is unavailable, say so rather than guessing at it."
+        )
+    else:
+        instruction = (
+            f"Here is one specific ride of mine:\n\n{context}\n\n"
+            "Analyze this ride: what it did for me, what the lap/decoupling data says about "
+            "how well it went, and what it means for my training. Be specific and concise. "
+            "If a metric is unavailable, say so rather than guessing at it."
+        )
     return _send(
         model=settings.anthropic_model,
         max_tokens=800,
         system=_SYSTEM_PROMPT,
-        messages=[
-            {
-                "role": "user",
-                "content": (
-                    f"Here is one specific ride of mine:\n\n{context}\n\n"
-                    "Analyze this ride: what it did for me, what the lap/decoupling data says about "
-                    "how well it went, and what it means for my training. Be specific and concise. "
-                    "If a metric is unavailable, say so rather than guessing at it."
-                ),
-            }
-        ],
+        messages=[{"role": "user", "content": instruction}],
     )
 
 
@@ -235,3 +268,35 @@ def chat_reply(
         system=grounded_system,
         messages=history,
     )
+
+
+def chat_reply_stream(
+    history: list[dict[str, str]], snapshot: DailyHealthSnapshot, weight_kg: Optional[float] = None
+):
+    """Yields text deltas as Claude produces them.
+
+    The chat UI types replies out as they arrive, which is only honest if the
+    text really is arriving incrementally — otherwise the animation is a
+    decoration pretending to be a live process. So the streaming goes all the
+    way back to the API rather than being faked client-side over an
+    already-complete reply.
+
+    Auth failures are re-raised through the same translation as _send: a
+    generator that dies mid-stream should fail with the actionable message, not
+    a raw 401.
+    """
+    context = _snapshot_context(snapshot, weight_kg)
+    grounded_system = _SYSTEM_PROMPT + f"\n\nToday's live data:\n{context}"
+    try:
+        with _client().messages.stream(
+            model=settings.anthropic_model,
+            max_tokens=700,
+            system=grounded_system,
+            messages=history,
+        ) as stream:
+            yield from stream.text_stream
+    except anthropic.AuthenticationError as exc:
+        raise RuntimeError(
+            "Anthropic rejected the stored API key. Re-run `python -m scripts.set_secrets` "
+            "with a valid key, then restart the backend."
+        ) from exc

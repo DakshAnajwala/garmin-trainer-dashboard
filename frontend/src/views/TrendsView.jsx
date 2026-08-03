@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import HrvTrendChart from "../components/HrvTrendChart";
+import QueryBox from "../components/QueryBox";
 import ReadinessTrendChart from "../components/ReadinessTrendChart";
 import PmcChart from "../components/PmcChart";
 import TimeRangePicker from "../components/TimeRangePicker";
@@ -77,6 +78,8 @@ export default function TrendsView() {
 
   return (
     <div className="view-grid">
+      <QueryBox />
+
       <TimeRangePicker onChange={setRange} defaultPreset="1M" />
 
       {error && <div className="error-box">Couldn't reach the backend: {error}</div>}

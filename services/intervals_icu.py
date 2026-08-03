@@ -25,8 +25,25 @@ from config.settings import settings
 _BASE_URL = "https://intervals.icu/api/v1"
 
 
+def athlete_id() -> str:
+    """Store first, env second.
+
+    The API key was always settable (it decrypts on demand), but the athlete ID
+    was an env-loaded field — so connecting intervals.icu meant editing .env and
+    restarting, which is not something a Settings tab can do. Storing it makes
+    the connection configurable from the app; the env value stays as the default
+    for existing deploys, so nothing breaks for anyone already set up.
+
+    Imported lazily: local_store imports config, and config imports this at
+    module scope would close the loop.
+    """
+    from database import local_store
+
+    return local_store.get_app_config().get("intervals_athlete_id") or settings.intervals_athlete_id
+
+
 def is_configured() -> bool:
-    return bool(settings.intervals_api_key and settings.intervals_athlete_id)
+    return bool(settings.intervals_api_key and athlete_id())
 
 
 def _auth() -> tuple[str, str]:
@@ -40,7 +57,7 @@ async def get_wellness_range_raw(start: date_, end: date_) -> Any:
             "intervals.icu isn't configured. Run `python -m scripts.set_secrets` to set your API "
             "key, and set INTERVALS_ATHLETE_ID in .env (find it in your intervals.icu profile URL)."
         )
-    url = f"{_BASE_URL}/athlete/{settings.intervals_athlete_id}/wellness"
+    url = f"{_BASE_URL}/athlete/{athlete_id()}/wellness"
     async with httpx.AsyncClient(timeout=20) as client:
         resp = await client.get(url, params={"oldest": start.isoformat(), "newest": end.isoformat()}, auth=_auth())
         resp.raise_for_status()

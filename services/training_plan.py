@@ -150,3 +150,55 @@ def todays_prescription(
             "easy spin instead.",
         )
     return today
+
+
+def travel_window_for(for_date: date_, constraints: dict) -> Optional[dict]:
+    for window in constraints.get("travel_windows", []):
+        if window.get("start") and window.get("end") and window["start"] <= for_date.isoformat() <= window["end"]:
+            return window
+    return None
+
+
+def apply_constraints(prescription: SessionPrescription, for_date: date_, constraints: dict) -> SessionPrescription:
+    """Overrides the readiness-adjusted prescription with declared reality:
+    a travel window means the ride literally can't happen as planned,
+    regardless of what today's readiness says. This is different from the
+    coach unilaterally suggesting a skip (never allowed for the Saturday
+    slot) — here the athlete has affirmatively told the system they're
+    unavailable, so respecting that isn't the same kind of suggestion.
+
+    Race-day tapering is left as a visible note rather than an automatic
+    rewrite of the prescription — same reasoning as the adaptive-load
+    advisory: a real training plan shouldn't silently rewrite itself with no
+    way to see what changed or why.
+    """
+    window = travel_window_for(for_date, constraints)
+    if window and prescription.session_type not in ("rest", "rest_swap"):
+        note = window.get("note") or "Travel"
+        return replace(
+            prescription,
+            session_type="rest_swap",
+            title=f"{note} — plan adjusted",
+            detail=(
+                f"Original plan was {prescription.title}, but you're traveling ({window['start']} to "
+                f"{window['end']}). Rest, or a short easy spin if a bike is available — don't force the "
+                "original session around travel logistics."
+            ),
+            duration_min=None,
+            target_watts_low=None,
+            target_watts_high=None,
+        )
+
+    race_date = constraints.get("race_date")
+    if race_date:
+        days_out = (date_.fromisoformat(race_date) - for_date).days
+        if 0 <= days_out <= 3 and prescription.session_type in ("intervals", "long_ride"):
+            taper_note = (
+                f"\n\nRace in {days_out} day{'s' if days_out != 1 else ''} ({race_date}) — this would "
+                "normally be a taper/opener day, not a full key session. Consider scaling back."
+                if days_out > 0
+                else f"\n\nRace day. This session as planned doesn't make sense today — treat this as a warm-up/opener only."
+            )
+            return replace(prescription, detail=prescription.detail + taper_note)
+
+    return prescription

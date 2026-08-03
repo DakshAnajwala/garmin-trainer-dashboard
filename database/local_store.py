@@ -44,6 +44,31 @@ _SYNCED_KEYS = {
     # annoying to redo on another device — unlike the bulky Garmin caches.
     "gear_assignments",
     "hidden_activities",
+    "ride_debriefs",
+    "constraints",
+    "undo_log",
+    # The athlete's actual dated plan: what they intend to do on each day.
+    # Real athlete intent (generated then edited, or hand-built), small and
+    # painful to redo — unlike the old repeating template it replaces, which
+    # was computed on the fly and never stored.
+    "planned_workouts",
+    # Which rides' power is untrustworthy (bad calibration) and must not feed
+    # the power curve / FTP. Athlete judgment that would be genuinely painful
+    # to reconstruct — and unlike the Garmin caches it can't be re-derived from
+    # source, so it syncs.
+    "power_exclusions",
+    # Athlete intent around the physiology model and the plan: manual
+    # parameter overrides/locks, pinned plan sessions, prescription override
+    # log, and race events. All small, all unrecoverable from Garmin.
+    # (The *computed* model itself is derived and stays local-only.)
+    "model_overrides",
+    "plan_pins",
+    "prescription_log",
+    "race_events",
+    # Non-sensitive app config set from the Settings tab (e.g. the intervals.icu
+    # athlete ID). Secrets never live here — they stay in the encrypted store
+    # (config/secrets.py). Small, and worth carrying between devices.
+    "app_config",
 }
 
 
@@ -204,6 +229,13 @@ def save_activity_details(activity_id: int, samples: list[dict[str, Any]]) -> No
     _save(store)
 
 
+def get_all_activity_details() -> dict[str, list[dict[str, Any]]]:
+    """Every ride we hold samples for — the raw material the measured power
+    curve aggregates over. Details are cached lazily (only once a ride has been
+    opened), so this is a subset of your history, not all of it."""
+    return _load().get("activity_details", {})
+
+
 def list_workouts() -> list[dict[str, Any]]:
     store = _load()
     return store.get("workouts", [])
@@ -223,10 +255,89 @@ def save_workout(workout: dict[str, Any]) -> dict[str, Any]:
     return workout
 
 
+_UNDO_LOG_MAX = 20
+
+
+def _push_undo(store: dict[str, Any], collection: str, item: dict[str, Any]) -> None:
+    """Records a deleted item so it can be restored — motivated by a real
+    incident (see memory: overnight_build_assumptions_5.md) where a gear
+    entry was deleted with no way to recover it. Ring buffer capped at
+    _UNDO_LOG_MAX; oldest entries fall off rather than growing unbounded."""
+    log = store.setdefault("undo_log", [])
+    log.append({"id": str(int(time.time() * 1000000)), "collection": collection, "item": item, "deleted_at": time.time()})
+    del log[:-_UNDO_LOG_MAX]
+
+
+def list_undo_log() -> list[dict[str, Any]]:
+    return sorted(_load().get("undo_log", []), key=lambda e: e["deleted_at"], reverse=True)
+
+
+def restore_from_undo(undo_id: str) -> Optional[dict[str, Any]]:
+    """Re-inserts a deleted item back into its original collection and
+    removes it from the undo log. Returns the restored item, or None if the
+    undo_id wasn't found (e.g. already restored, or fell off the ring buffer)."""
+    store = _load()
+    log = store.get("undo_log", [])
+    entry = next((e for e in log if e["id"] == undo_id), None)
+    if entry is None:
+        return None
+    store["undo_log"] = [e for e in log if e["id"] != undo_id]
+    store.setdefault(entry["collection"], []).append(entry["item"])
+    _save(store)
+    return entry["item"]
+
+
 def delete_workout(workout_id: str) -> None:
     store = _load()
-    store["workouts"] = [w for w in store.get("workouts", []) if w["id"] != workout_id]
+    workouts = store.get("workouts", [])
+    removed = next((w for w in workouts if w["id"] == workout_id), None)
+    store["workouts"] = [w for w in workouts if w["id"] != workout_id]
+    if removed:
+        _push_undo(store, "workouts", removed)
     _save(store)
+
+
+# --- Dated planned workouts (the real, editable plan) ------------------------
+#
+# Replaces the old repeating template: the calendar used to paint the same
+# 7-day pattern onto every week, computed on the fly and impossible to edit.
+# Now a planned session is a stored object keyed by its actual date, so the
+# calendar starts empty and fills only with what the athlete generated or built.
+
+
+def get_planned_workouts(start: str, end: str) -> dict[str, Any]:
+    """date (ISO) -> planned workout, for every planned day in [start, end]."""
+    planned = _load().get("planned_workouts", {})
+    return {d: w for d, w in planned.items() if start <= d <= end}
+
+
+def get_planned_workout(date_str: str) -> Optional[dict[str, Any]]:
+    return _load().get("planned_workouts", {}).get(date_str)
+
+
+def save_planned_workout(date_str: str, workout: dict[str, Any]) -> dict[str, Any]:
+    store = _load()
+    planned = store.setdefault("planned_workouts", {})
+    workout["date"] = date_str
+    planned[date_str] = workout
+    _save(store)
+    return workout
+
+
+def delete_planned_workout(date_str: str) -> Optional[dict[str, Any]]:
+    """Clear a day. Undoable, like every other delete — a mis-clicked plan
+    day shouldn't need a second incident to recover from."""
+    store = _load()
+    planned = store.get("planned_workouts", {})
+    removed = planned.pop(date_str, None)
+    if removed:
+        _push_undo(store, "planned_workouts", {"date": date_str, **removed})
+    _save(store)
+    return removed
+
+
+def planned_dates_in_week(monday: str, sunday: str) -> set[str]:
+    return set(get_planned_workouts(monday, sunday).keys())
 
 
 def log_strength_session(entry: dict[str, Any]) -> dict[str, Any]:
@@ -247,7 +358,11 @@ def get_strength_sessions(limit_days: int = 180) -> list[dict[str, Any]]:
 
 def delete_strength_session(session_id: str) -> None:
     store = _load()
-    store["strength_sessions"] = [s for s in store.get("strength_sessions", []) if s.get("id") != session_id]
+    sessions = store.get("strength_sessions", [])
+    removed = next((s for s in sessions if s.get("id") == session_id), None)
+    store["strength_sessions"] = [s for s in sessions if s.get("id") != session_id]
+    if removed:
+        _push_undo(store, "strength_sessions", removed)
     _save(store)
 
 
@@ -268,7 +383,11 @@ def list_goals() -> list[dict[str, Any]]:
 
 def delete_goal(goal_id: str) -> None:
     store = _load()
-    store["goals"] = [g for g in store.get("goals", []) if g["id"] != goal_id]
+    goals = store.get("goals", [])
+    removed = next((g for g in goals if g["id"] == goal_id), None)
+    store["goals"] = [g for g in goals if g["id"] != goal_id]
+    if removed:
+        _push_undo(store, "goals", removed)
     _save(store)
 
 
@@ -289,7 +408,11 @@ def list_gear() -> list[dict[str, Any]]:
 
 def delete_gear(gear_id: str) -> None:
     store = _load()
-    store["gear"] = [g for g in store.get("gear", []) if g["id"] != gear_id]
+    items = store.get("gear", [])
+    removed = next((g for g in items if g["id"] == gear_id), None)
+    store["gear"] = [g for g in items if g["id"] != gear_id]
+    if removed:
+        _push_undo(store, "gear", removed)
     _save(store)
 
 
@@ -360,6 +483,246 @@ def assign_gear(activity_id: str, gear_id: Optional[str]) -> None:
         assignments[str(activity_id)] = gear_id
     else:
         assignments.pop(str(activity_id), None)
+    _save(store)
+
+
+def get_constraints() -> dict[str, Any]:
+    """Race date + travel/reduced-availability windows the athlete has told
+    the app about — small bounded record, Firestore-synced. Solving the
+    training block around declared reality rather than planning in a vacuum
+    and hoping the week cooperates."""
+    return _load().get("constraints", {"race_date": None, "travel_windows": []})
+
+
+def save_constraints(constraints: dict[str, Any]) -> dict[str, Any]:
+    store = _load()
+    store["constraints"] = constraints
+    _save(store)
+    return constraints
+
+
+def get_ride_debrief(activity_id: str) -> Optional[str]:
+    """How the ride felt, in your own words — the subjective half of the
+    ride analysis. Small bounded map (activity_id -> text), Firestore-synced
+    like gear_assignments above."""
+    return _load().get("ride_debriefs", {}).get(str(activity_id))
+
+
+def save_ride_debrief(activity_id: str, text: str) -> None:
+    store = _load()
+    debriefs = store.setdefault("ride_debriefs", {})
+    if text.strip():
+        debriefs[str(activity_id)] = text.strip()
+    else:
+        debriefs.pop(str(activity_id), None)
+    _save(store)
+
+
+def get_power_exclusions() -> dict[str, Any]:
+    """activity_id -> {excluded: bool, reason: str, ranges: [{start_sec, end_sec}]}.
+
+    Records *which* power data to ignore when aggregating the power curve and
+    FTP — never a copy of the data itself. The raw samples in activity_details
+    stay byte-for-byte untouched, so this is always reversible: clearing an
+    exclusion restores the previous curve exactly, because the curve is
+    recomputed from those untouched samples every time.
+    """
+    return _load().get("power_exclusions", {})
+
+
+def get_power_exclusion(activity_id: str) -> dict[str, Any]:
+    entry = get_power_exclusions().get(str(activity_id)) or {}
+    return {
+        "excluded": bool(entry.get("excluded", False)),
+        "reason": entry.get("reason") or "",
+        "ranges": entry.get("ranges") or [],
+    }
+
+
+def set_power_exclusion(
+    activity_id: str,
+    excluded: Optional[bool] = None,
+    reason: Optional[str] = None,
+    ranges: Optional[list[dict[str, Any]]] = None,
+) -> dict[str, Any]:
+    """Partial update — only the fields passed are changed.
+
+    Ranges survive toggling the whole-ride switch off and on, so a rider who
+    brushed out three bad segments doesn't lose that work by flipping the
+    ride-level toggle. The entry is dropped entirely once it carries no
+    information, keeping this map small enough to sync.
+    """
+    store = _load()
+    exclusions = store.setdefault("power_exclusions", {})
+    entry = dict(exclusions.get(str(activity_id)) or {})
+
+    if excluded is not None:
+        entry["excluded"] = bool(excluded)
+    if reason is not None:
+        entry["reason"] = reason.strip()
+    if ranges is not None:
+        entry["ranges"] = [
+            {"start_sec": int(r["start_sec"]), "end_sec": int(r["end_sec"])}
+            for r in ranges
+            if int(r["end_sec"]) > int(r["start_sec"])
+        ]
+
+    if not entry.get("excluded") and not entry.get("ranges") and not entry.get("reason"):
+        exclusions.pop(str(activity_id), None)
+    else:
+        exclusions[str(activity_id)] = entry
+
+    _save(store)
+    return get_power_exclusion(activity_id)
+
+
+# --- Physiology model (F6) ---------------------------------------------------
+
+
+def get_app_config() -> dict[str, Any]:
+    """Non-sensitive settings set from the Settings tab. Secrets never appear
+    here — those stay in the encrypted store (config/secrets.py)."""
+    return _load().get("app_config", {})
+
+
+def set_app_config(key: str, value: Any) -> dict[str, Any]:
+    store = _load()
+    config = store.setdefault("app_config", {})
+    if value in (None, ""):
+        config.pop(key, None)
+    else:
+        config[key] = value
+    _save(store)
+    return config
+
+
+def get_physiology_model() -> Optional[dict[str, Any]]:
+    """Last computed model, with its input snapshot. Derived data — local-only,
+    recomputable at will; what syncs is the athlete's *intent* (overrides)."""
+    return _load().get("physiology_model")
+
+
+def save_physiology_model(model: dict[str, Any]) -> None:
+    store = _load()
+    store["physiology_model"] = model
+    _save(store)
+
+
+def get_model_overrides() -> dict[str, Any]:
+    """param name -> {value, locked, reason, set_at}. A locked param survives
+    every auto-recompute until explicitly unlocked — the whole point is that
+    the athlete knows something the data doesn't (illness, a new meter)."""
+    return _load().get("model_overrides", {})
+
+
+def set_model_override(
+    name: str, value: Optional[float], locked: bool, reason: str = ""
+) -> dict[str, Any]:
+    store = _load()
+    overrides = store.setdefault("model_overrides", {})
+    if value is None:
+        overrides.pop(name, None)
+    else:
+        overrides[name] = {"value": value, "locked": locked, "reason": reason.strip(), "set_at": time.time()}
+    _save(store)
+    return overrides.get(name, {})
+
+
+# --- Plan pins + prescription log (F8 / F2) ----------------------------------
+
+
+def get_plan_pins() -> dict[str, Any]:
+    """ISO date -> {reason}. A pinned session is immovable by reflow."""
+    return _load().get("plan_pins", {})
+
+
+def set_plan_pin(date_str: str, pinned: bool, reason: str = "") -> None:
+    store = _load()
+    pins = store.setdefault("plan_pins", {})
+    if pinned:
+        pins[date_str] = {"reason": reason.strip(), "set_at": time.time()}
+    else:
+        pins.pop(date_str, None)
+    _save(store)
+
+
+def log_prescription_decision(date_str: str, decision: str, reason: str = "") -> None:
+    """decision: accepted | overridden. The override log is how the plan learns
+    what the athlete actually does with advice."""
+    store = _load()
+    log = store.setdefault("prescription_log", {})
+    log[date_str] = {"decision": decision, "reason": reason.strip(), "logged_at": time.time()}
+    _save(store)
+
+
+def get_prescription_log() -> dict[str, Any]:
+    return _load().get("prescription_log", {})
+
+
+# --- Race events + demand profiles (F1) --------------------------------------
+
+
+def list_race_events() -> list[dict[str, Any]]:
+    """Event metadata only (name, date, mass, conditions choice) — small and
+    synced. The route track itself can be thousands of points, which is
+    exactly the bulk the Firestore 1MiB cap exists to keep out, so it lives
+    local-only under event_routes like activity_details does."""
+    return _load().get("race_events", [])
+
+
+def get_event_route(event_id: str) -> Optional[list[dict[str, Any]]]:
+    return _load().get("event_routes", {}).get(event_id)
+
+
+def save_event_route(event_id: str, points: list[dict[str, Any]]) -> None:
+    store = _load()
+    store.setdefault("event_routes", {})[event_id] = points
+    _save(store)
+
+
+def save_race_event(event: dict[str, Any]) -> dict[str, Any]:
+    store = _load()
+    events = store.setdefault("race_events", [])
+    events[:] = [e for e in events if e["id"] != event["id"]] + [event]
+    _save(store)
+    return event
+
+
+def delete_race_event(event_id: str) -> None:
+    store = _load()
+    store["race_events"] = [e for e in store.get("race_events", []) if e["id"] != event_id]
+    store.get("demand_profiles", {}).pop(event_id, None)
+    store.get("event_routes", {}).pop(event_id, None)
+    _save(store)
+
+
+def get_demand_profile(event_id: str) -> Optional[dict[str, Any]]:
+    """Derived from the event's route+conditions — local-only, like the
+    computed model; the event itself (with its route) is what syncs."""
+    return _load().get("demand_profiles", {}).get(event_id)
+
+
+def save_demand_profile(event_id: str, profile: dict[str, Any]) -> None:
+    store = _load()
+    store.setdefault("demand_profiles", {})[event_id] = profile
+    _save(store)
+
+
+# --- Ask-your-own-data query cache (F5) ---------------------------------------
+
+
+def get_cached_query(normalized: str) -> Optional[dict[str, Any]]:
+    return _load().get("query_cache", {}).get(normalized)
+
+
+def cache_query(normalized: str, result: dict[str, Any]) -> None:
+    store = _load()
+    cache = store.setdefault("query_cache", {})
+    cache[normalized] = {**result, "cached_at": time.time()}
+    if len(cache) > 100:
+        oldest = sorted(cache, key=lambda k: cache[k].get("cached_at", 0))[: len(cache) - 100]
+        for k in oldest:
+            cache.pop(k, None)
     _save(store)
 
 

@@ -127,6 +127,37 @@ export default function WorkoutBuilderView({ ftpWatts }) {
                 {s.target_type !== "steady" ? `–${Math.round((s.target_high_pct_ftp ?? s.target_low_pct_ftp) * ftpWatts)}` : ""}W
               </span>
             )}
+            {s.cadence_low_rpm != null || s.cadence_high_rpm != null ? (
+              <>
+                <input
+                  type="number"
+                  min="30"
+                  max="120"
+                  value={s.cadence_low_rpm ?? ""}
+                  onChange={(e) => updateStep(i, { cadence_low_rpm: e.target.value ? Number(e.target.value) : null })}
+                  title="cadence low rpm"
+                  style={{ width: 48 }}
+                />
+                <span className="step-unit">–</span>
+                <input
+                  type="number"
+                  min="30"
+                  max="120"
+                  value={s.cadence_high_rpm ?? ""}
+                  onChange={(e) => updateStep(i, { cadence_high_rpm: e.target.value ? Number(e.target.value) : null })}
+                  title="cadence high rpm"
+                  style={{ width: 48 }}
+                />
+                <span className="step-unit">rpm</span>
+                <button className="followup-btn" onClick={() => updateStep(i, { cadence_low_rpm: null, cadence_high_rpm: null })} title="Remove cadence target">
+                  no cadence
+                </button>
+              </>
+            ) : (
+              <button className="followup-btn" onClick={() => updateStep(i, { cadence_low_rpm: 50, cadence_high_rpm: 60 })} title="Add a cadence target (e.g. overgearing work)">
+                + cadence
+              </button>
+            )}
             <button className="step-remove" onClick={() => removeStep(i)}>
               ✕
             </button>

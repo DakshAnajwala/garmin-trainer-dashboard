@@ -4,7 +4,7 @@ import { api } from "../api";
 // Framework only, per athlete request: capture bike-setup parameters now;
 // the actual CdA/power-required-for-speed calculator (the original "wind
 // tunnel" idea) and a designated frameset/wheelset library are follow-ups.
-export default function AeroView() {
+export default function AeroProfileForm() {
   const [profile, setProfile] = useState(null);
   const [status, setStatus] = useState(null);
 

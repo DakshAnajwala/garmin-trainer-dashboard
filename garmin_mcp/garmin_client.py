@@ -309,6 +309,13 @@ class GarminMCPClient:
                     "avg_power_w": a.get("avgPower"),
                     "max_power_w": a.get("maxPower"),
                     "norm_power_w": a.get("normPower"),
+                    # Recording device, not the bike itself — verified against
+                    # real data that the same device (e.g. a watch/head unit)
+                    # records both indoor KICKR sessions and outdoor rides, so
+                    # this can't reliably mean "which bike." Still a real,
+                    # useful optional signal if your device usage happens to
+                    # correlate with which bike you ride.
+                    "device_id": a.get("deviceId"),
                 }
             )
         return records

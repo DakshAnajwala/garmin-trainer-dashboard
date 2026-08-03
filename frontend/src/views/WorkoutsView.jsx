@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import ActivitySplitsChart from "../components/ActivitySplitsChart";
-import ExportPanel from "../components/ExportPanel";
+import PowerExclusionPanel from "../components/PowerExclusionPanel";
 import RideCoachPanel from "../components/RideCoachPanel";
 import RouteMap from "../components/RouteMap";
 import SegmentAnalyzer from "../components/SegmentAnalyzer";
 import ZoneBars from "../components/ZoneBars";
 import { useRedact } from "../redactContext";
+import { formatDistanceM, useUnits } from "../unitsContext";
 
 const TYPE_ICON = {
   road_biking: "🚴",
@@ -23,12 +24,10 @@ function fmtDuration(sec) {
   return h ? `${h}h ${m}m` : `${m}m`;
 }
 
-function fmtDistance(m) {
-  return m ? `${(m / 1000).toFixed(1)} km` : "—";
-}
-
 export default function WorkoutsView() {
   const { redacted } = useRedact();
+  const { imperial } = useUnits();
+  const fmtDistance = (m) => formatDistanceM(m, imperial);
   const [activities, setActivities] = useState(null);
   const [error, setError] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -38,6 +37,7 @@ export default function WorkoutsView() {
   const [importError, setImportError] = useState(null);
   const [showHidden, setShowHidden] = useState(false);
   const [gear, setGear] = useState([]);
+  const [duplicates, setDuplicates] = useState([]);
   const fileInputRef = useRef(null);
 
   const loadActivities = (includeHidden = showHidden) =>
@@ -53,7 +53,18 @@ export default function WorkoutsView() {
 
   useEffect(() => {
     api.listGear().then(setGear).catch(() => {});
+    api.duplicateActivities().then(setDuplicates).catch(() => {});
   }, []);
+
+  const keepAndHideOthers = async (keepId, group) => {
+    for (const activityId of group.activity_ids) {
+      if (String(activityId) !== String(keepId)) {
+        await api.deleteActivity(activityId); // hides Garmin rides, deletes imported ones for real
+      }
+    }
+    setDuplicates((prev) => prev.filter((g) => g !== group));
+    await loadActivities();
+  };
 
   const junkCount = (activities || []).filter((a) => a.likely_junk && !a.hidden).length;
 
@@ -156,6 +167,20 @@ export default function WorkoutsView() {
           </button>
         </div>
       )}
+      {duplicates.map((group, i) => (
+        <div className="junk-notice" key={i}>
+          <span>
+            These {group.activities.length} rides look like the same ride recorded twice — pick which to keep:
+          </span>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {group.activities.map((a) => (
+              <button key={a.activity_id} className="followup-btn" onClick={() => keepAndHideOthers(a.activity_id, group)}>
+                Keep "{a.name}"
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
       <div className="caption">
         Direct Strava/Wahoo/Zwift sync isn't built (needs a developer app registered with each platform) — export an
         activity file from any of them and import it here instead.
@@ -175,6 +200,10 @@ export default function WorkoutsView() {
                 {a.hidden && <span className="plan-badge badge-muted"> hidden</span>}
                 {a.source === "imported" && <span className="plan-badge badge-blue"> imported</span>}
                 {a.likely_junk && !a.hidden && <span className="plan-badge badge-warning"> likely not training</span>}
+                {a.power_excluded && <span className="plan-badge badge-warning"> power excluded</span>}
+                {!a.power_excluded && a.power_segments_excluded > 0 && (
+                  <span className="plan-badge badge-muted"> {a.power_segments_excluded} segment(s) excluded</span>
+                )}
               </span>
               <span className="activity-sub">{a.start_time_local}</span>
             </span>
@@ -253,6 +282,10 @@ export default function WorkoutsView() {
           <h3>Time in zone</h3>
           <ZoneBars activity={selected} />
 
+          {details?.length > 0 && (
+            <PowerExclusionPanel activityId={selected.activity_id} samples={details} />
+          )}
+
           {!redacted && <RideCoachPanel activity={selected} />}
 
           <h3>Route</h3>
@@ -281,7 +314,6 @@ export default function WorkoutsView() {
         </div>
       )}
 
-      <ExportPanel />
     </div>
   );
 }

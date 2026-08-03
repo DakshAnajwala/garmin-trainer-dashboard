@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { colors } from "../theme";
 
@@ -7,21 +7,50 @@ export default function RideCoachPanel({ activity }) {
   const [analysis, setAnalysis] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [debrief, setDebrief] = useState("");
+  const [debriefSaved, setDebriefSaved] = useState(true);
+  const [debriefSaving, setDebriefSaving] = useState(false);
+  // The initial GET can resolve after the user has already started typing
+  // (slow network, or React StrictMode double-invoking the effect in dev).
+  // Without this guard, that late response silently overwrites what they
+  // typed, and the next blur then saves the overwritten (often empty) value
+  // — a real data-loss bug caught by testing, not hypothetical.
+  const editedRef = useRef(false);
 
   useEffect(() => {
     setDecoupling(null);
     setAnalysis(null);
     setError(null);
+    setDebrief("");
+    setDebriefSaved(true);
+    editedRef.current = false;
     api
       .activityDecoupling(activity.activity_id)
       .then(setDecoupling)
       .catch(() => setDecoupling({ available: false, reason: "Couldn't compute decoupling for this ride." }));
+    api
+      .getRideDebrief(activity.activity_id)
+      .then((r) => {
+        if (!editedRef.current) setDebrief(r.text || "");
+      })
+      .catch(() => {});
   }, [activity.activity_id]);
+
+  const saveDebrief = async () => {
+    setDebriefSaving(true);
+    try {
+      await api.saveRideDebrief(activity.activity_id, debrief);
+      setDebriefSaved(true);
+    } finally {
+      setDebriefSaving(false);
+    }
+  };
 
   const analyze = async () => {
     setBusy(true);
     setError(null);
     try {
+      if (!debriefSaved) await saveDebrief(); // analysis reads the saved debrief server-side
       const { reply } = await api.analyzeRide(activity.activity_id);
       setAnalysis(reply);
     } catch (e) {
@@ -55,6 +84,25 @@ export default function RideCoachPanel({ activity }) {
             <div className="caption">{decoupling.reason}</div>
           </>
         )}
+      </div>
+
+      <div className="debrief-box">
+        <label className="metric-card-label" htmlFor="ride-debrief">
+          How did it feel? (optional — the coach reconciles this against the power/HR data)
+        </label>
+        <textarea
+          id="ride-debrief"
+          rows={2}
+          value={debrief}
+          placeholder="e.g. legs felt flat on the third climb..."
+          onChange={(e) => {
+            editedRef.current = true;
+            setDebrief(e.target.value);
+            setDebriefSaved(false);
+          }}
+          onBlur={() => !debriefSaved && saveDebrief()}
+        />
+        {!debriefSaved && <span className="caption">{debriefSaving ? "Saving..." : "Unsaved"}</span>}
       </div>
 
       <button className="primary-btn" onClick={analyze} disabled={busy}>

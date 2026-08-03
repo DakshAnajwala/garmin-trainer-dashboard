@@ -1,11 +1,25 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
+import { useTypewriter } from "../useTypewriter";
+
+// The reply currently arriving. Older messages render as plain text — replaying
+// the animation on every re-render would retype history the user already read.
+function StreamingReply({ text }) {
+  const { text: shown, typing } = useTypewriter(text);
+  return (
+    <div className="chat-content">
+      {shown}
+      {typing && <span className="caret" aria-hidden="true" />}
+    </div>
+  );
+}
 
 export default function CoachView() {
   const [followups, setFollowups] = useState([]);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [streaming, setStreaming] = useState(null);
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -14,7 +28,7 @@ export default function CoachView() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
+  }, [messages, loading, streaming]);
 
   const pushAndSend = async (userText, sendFn) => {
     const nextMessages = [...messages, { role: "user", content: userText }];
@@ -27,11 +41,25 @@ export default function CoachView() {
       setMessages([...nextMessages, { role: "assistant", content: `Couldn't reach Claude: ${e.message}` }]);
     } finally {
       setLoading(false);
+      setStreaming(null);
     }
   };
 
   const analyzeDay = () => pushAndSend("Analyze my day", async () => (await api.analyzeDay()).reply);
-  const askFollowup = (question) => pushAndSend(question, async (msgs) => (await api.chat(msgs)).reply);
+
+  const askFollowup = (question) =>
+    pushAndSend(question, async (msgs) => {
+      try {
+        setStreaming("");
+        return await api.chatStream(msgs, setStreaming);
+      } catch (e) {
+        // Streaming is an enhancement, not the feature — if it fails for any
+        // reason other than Claude itself refusing, fall back to the plain
+        // request so the user still gets their answer.
+        setStreaming(null);
+        return (await api.chat(msgs)).reply;
+      }
+    });
 
   const sendFreeform = () => {
     if (!input.trim() || loading) return;
@@ -70,13 +98,17 @@ export default function CoachView() {
         {loading && (
           <div className="chat-message assistant">
             <div className="chat-role">Coach</div>
-            <div className="chat-content">
-              <span className="typing-dots">
-                <span />
-                <span />
-                <span />
-              </span>
-            </div>
+            {streaming ? (
+              <StreamingReply text={streaming} />
+            ) : (
+              <div className="chat-content">
+                <span className="typing-dots">
+                  <span />
+                  <span />
+                  <span />
+                </span>
+              </div>
+            )}
           </div>
         )}
         <div ref={bottomRef} />

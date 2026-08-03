@@ -36,7 +36,9 @@ class ReadinessVerdict:
     scheduled_session: str
 
 
-def compute_verdict(snapshot: DailyHealthSnapshot, for_date: Optional[date_] = None) -> ReadinessVerdict:
+def compute_verdict(
+    snapshot: DailyHealthSnapshot, for_date: Optional[date_] = None, traveling_note: Optional[str] = None
+) -> ReadinessVerdict:
     for_date = for_date or snapshot.date
     weekday = for_date.weekday()
     scheduled_session = WEEKLY_SCHEDULE.get(weekday, "Unscheduled")
@@ -70,6 +72,17 @@ def compute_verdict(snapshot: DailyHealthSnapshot, for_date: Optional[date_] = N
         detail += (
             " Today's plan is VO2max/anaerobic intervals (your limiter). Given low readiness, consider "
             "cutting the rep count or swapping to endurance instead of forcing the full session."
+        )
+
+    # Adds context, doesn't change the verdict itself — jet lag can genuinely
+    # depress HRV/RHR/sleep scores the same way real overreaching does, but
+    # silently softening the *severity* on a declared travel day risks
+    # masking a real problem that happens to coincide with travel. A caveat
+    # the athlete can weigh is safer than the app deciding for them.
+    if traveling_note and verdict in ("REST", "EASY"):
+        detail += (
+            f" You're traveling ({traveling_note}) — some of this may be jet lag/travel disruption rather than "
+            "training fatigue. Worth weighing that against how you actually feel, not just the score."
         )
 
     return ReadinessVerdict(verdict, color, headline, detail, scheduled_session)
