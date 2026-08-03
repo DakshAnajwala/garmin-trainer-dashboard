@@ -58,6 +58,60 @@ class TestOvergearing:
         assert all(s.get("cadence_low_rpm") is None for s in easy_steps)
 
 
+class TestNeuromuscular:
+    """The sprint prescription. Its defining feature is the FULL recovery
+    between reps — that is what separates it from an anaerobic session, so the
+    tests guard the recovery far more tightly than the work interval."""
+
+    def _work_steps(self, w):
+        return [s for s in w.steps if s["target_low_pct_ftp"] >= 1.0]
+
+    def _recovery_steps(self, w):
+        # Every easy step except the opening warmup and closing cooldown.
+        return [s for s in w.steps if s["target_low_pct_ftp"] < 1.0][1:-1]
+
+    def test_work_intervals_are_short_and_maximal(self):
+        w = wt.build("neuromuscular", FTP)
+        work = self._work_steps(w)
+        assert work, "neuromuscular must have work intervals"
+        assert all(10 <= s["duration_sec"] <= 15 for s in work)
+        assert all(s["target_low_pct_ftp"] >= 1.5 for s in work)
+
+    def test_recovery_is_never_shorter_than_four_minutes(self):
+        """The whole point. Cut this and the session trains a different system,
+        so it holds at BOTH ends of the intensity knob, not just the default."""
+        for intensity in (0.0, 0.5, 1.0):
+            w = wt.build("neuromuscular", FTP, intensity=intensity)
+            recoveries = self._recovery_steps(w)
+            assert recoveries
+            assert all(s["duration_sec"] >= 240 for s in recoveries), intensity
+
+    def test_recovery_is_far_longer_than_the_sprint_itself(self):
+        w = wt.build("neuromuscular", FTP)
+        longest_work = max(s["duration_sec"] for s in self._work_steps(w))
+        shortest_rest = min(s["duration_sec"] for s in self._recovery_steps(w))
+        assert shortest_rest >= 10 * longest_work
+
+    def test_work_intervals_carry_high_cadence(self):
+        w = wt.build("neuromuscular", FTP)
+        work = self._work_steps(w)
+        assert all(100 <= s["cadence_low_rpm"] <= 120 and 100 <= s["cadence_high_rpm"] <= 120 for s in work)
+
+    def test_recovery_steps_have_no_cadence_target(self):
+        w = wt.build("neuromuscular", FTP)
+        assert all(s.get("cadence_low_rpm") is None for s in self._recovery_steps(w))
+
+    def test_detail_says_the_watts_are_a_floor_not_a_target(self):
+        """A rider who paces a sprint to hit a number hasn't done the workout —
+        the prescription is only safe to ship if it says so."""
+        detail = wt.build("neuromuscular", FTP).detail
+        assert "floor" in detail
+        assert "effort-limited" in detail
+
+    def test_is_harder_than_anaerobic_at_the_peak(self):
+        assert wt.build("neuromuscular", FTP).target_watts_high > wt.build("anaerobic", FTP).target_watts_high
+
+
 class TestIntensityKnob:
     def test_intensity_is_clamped(self):
         low = wt.build("vo2max", FTP, intensity=-5)
@@ -78,12 +132,28 @@ class TestPowerZonesAreOrderedSensibly:
     this later isn't secretly recommending a harder session that's actually
     easier."""
 
-    def test_anaerobic_is_the_hardest_by_peak_watts(self):
-        peak = {t: wt.build(t, FTP).target_watts_high for t in wt.WORKOUT_TYPES}
-        assert peak["anaerobic"] == max(peak.values())
+    #: Descending peak intensity, shortest energy system first. Neuromuscular
+    #: sits above anaerobic because a 10-15s sprint is the highest-power effort
+    #: a rider makes — it asks for more watts than anything else in the catalog
+    #: precisely because it lasts the least time.
+    EXPECTED_ORDER = [
+        "neuromuscular", "anaerobic", "vo2max", "overgearing", "lactate_threshold", "endurance",
+    ]
 
-    def test_endurance_is_the_easiest(self):
+    def test_every_catalog_type_is_covered_by_the_ordering(self):
+        """Guards the two tests below: a new type added to the catalog without
+        a considered place in this ordering should fail here loudly rather than
+        silently escape the intensity-ordering check."""
+        assert set(self.EXPECTED_ORDER) == set(wt.WORKOUT_TYPES)
+
+    def test_peak_watts_descend_in_energy_system_order(self):
         peak = {t: wt.build(t, FTP).target_watts_high for t in wt.WORKOUT_TYPES}
+        ordered = [peak[t] for t in self.EXPECTED_ORDER]
+        assert ordered == sorted(ordered, reverse=True), peak
+
+    def test_neuromuscular_is_the_hardest_and_endurance_the_easiest(self):
+        peak = {t: wt.build(t, FTP).target_watts_high for t in wt.WORKOUT_TYPES}
+        assert peak["neuromuscular"] == max(peak.values())
         assert peak["endurance"] == min(peak.values())
 
 

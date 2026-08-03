@@ -20,12 +20,13 @@ from typing import Optional
 #: Every type the day-planner can choose from — both the UI and the AI layer
 #: enumerate this list rather than a hardcoded set, so there is exactly one
 #: place that defines "what a workout type is."
-WORKOUT_TYPES = ["vo2max", "lactate_threshold", "overgearing", "anaerobic", "endurance"]
+WORKOUT_TYPES = ["vo2max", "lactate_threshold", "overgearing", "neuromuscular", "anaerobic", "endurance"]
 
 _LABELS = {
     "vo2max": "VO2max intervals",
     "lactate_threshold": "Lactate threshold intervals",
     "overgearing": "Overgearing / torque work",
+    "neuromuscular": "Neuromuscular sprints",
     "anaerobic": "Anaerobic capacity intervals",
     "endurance": "Endurance ride",
 }
@@ -36,6 +37,7 @@ _TARGETS = {
     "vo2max": "aerobic ceiling and repeatability of hard efforts",
     "lactate_threshold": "the power you can hold for 20-60min — your FTP itself",
     "overgearing": "muscular torque and force production, independent of your aerobic system",
+    "neuromuscular": "peak sprint power — the recruitment and force production behind a 10-15s max effort",
     "anaerobic": "short, very hard efforts and the anaerobic capacity above VO2max",
     "endurance": "aerobic base and fat-burning efficiency at low intensity",
 }
@@ -132,6 +134,53 @@ def _overgearing(ftp_watts: Optional[float], intensity: float) -> GeneratedWorko
     )
 
 
+def _neuromuscular(ftp_watts: Optional[float], intensity: float) -> GeneratedWorkout:
+    """Maximal sprints with FULL recovery.
+
+    The long recoveries are the defining feature, not padding: cut them to 60-90s
+    and this stops being a neuromuscular session and becomes an anaerobic one —
+    a different Coggan row with a different training effect. So `intensity` moves
+    reps and sprint length, and is only allowed to shorten recovery from 5min to
+    4min. It never goes below that.
+
+    The %FTP band here is doing a different job than it does in every other
+    template. Elsewhere it's a target to hold; a true sprint is effort-limited,
+    not watt-limited, so 150-200% is a *floor* that says "this must be flat out",
+    not a ceiling to pace against. The detail text says so explicitly, because a
+    rider who paces a sprint to hit a number has not done the workout.
+    """
+    reps = 8 + round(intensity * 4)  # 8-12 reps
+    work_sec = 10 if intensity < 0.5 else 15
+    rest_sec = 300 if intensity < 0.5 else 240  # 5min -> 4min, never shorter
+    pct_low, pct_high = 150, 200
+    cadence = (100, 120)
+
+    steps = [{"duration_sec": 600, "target_type": "steady", "target_low_pct_ftp": 0.55}]
+    for _ in range(reps):
+        steps.append({
+            "duration_sec": work_sec, "target_type": "steady",
+            "target_low_pct_ftp": round(pct_low / 100, 3), "target_high_pct_ftp": round(pct_high / 100, 3),
+            "cadence_low_rpm": cadence[0], "cadence_high_rpm": cadence[1],
+        })
+        steps.append({"duration_sec": rest_sec, "target_type": "steady", "target_low_pct_ftp": 0.45})
+    steps.append({"duration_sec": 600, "target_type": "steady", "target_low_pct_ftp": 0.55})
+
+    low, high = _watts(ftp_watts, pct_low), _watts(ftp_watts, pct_high)
+    watt_text = f"{low}-{high}W" if low and high else "watts TBD — log a weigh-in / FTP test"
+    return GeneratedWorkout(
+        "intervals", _LABELS["neuromuscular"],
+        (
+            f"{reps} x {work_sec}s flat-out sprints at {cadence[0]}-{cadence[1]}rpm, "
+            f"{rest_sec // 60}min easy spinning between reps. {watt_text} is a floor, not a target — "
+            f"a sprint is effort-limited, not watt-limited, so go as hard as you can and let the number "
+            f"land where it lands. The long recoveries are the point: shorten them and this becomes an "
+            f"anaerobic session instead. Targets {_TARGETS['neuromuscular']}."
+        ),
+        duration_min=round(sum(s["duration_sec"] for s in steps) / 60),
+        target_watts_low=low, target_watts_high=high, steps=steps,
+    )
+
+
 def _anaerobic(ftp_watts: Optional[float], intensity: float) -> GeneratedWorkout:
     reps = 6 + round(intensity * 4)  # 6-10 reps
     work_sec = 30 if intensity < 0.5 else 45
@@ -174,6 +223,7 @@ _GENERATORS = {
     "vo2max": _vo2max,
     "lactate_threshold": _lactate_threshold,
     "overgearing": _overgearing,
+    "neuromuscular": _neuromuscular,
     "anaerobic": _anaerobic,
     "endurance": _endurance,
 }
