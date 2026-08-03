@@ -409,6 +409,77 @@ Degraded states to handle explicitly:
   notes (steps are meaningless), and add **[Mark as done]** → `POST /api/strength`
   per §1.2.
 
+## 4.5 BUILD STATUS — all eight steps shipped (2026-08-03)
+
+| # | Step | State | Commit |
+|---|---|---|---|
+| 1 | `neuromuscular` type + generator | ✅ | `f71d113` |
+| 2 | `suggest_strength_focus` + `compose_three_options` + mapping | ✅ | `02c4f2d` |
+| 3 | `GET /api/planned/{date}/suggestions` | ✅ | `8723589` |
+| 4 | `TodaySuggestionPanel.jsx` | ✅ | `e0e28d1` |
+| 5 | `AddCalendarEntryModal.jsx` + CalendarView rewrite | ✅ | `23932b7` |
+| 6 | New session types, colours, travel markers | ✅ | `23932b7` |
+| 7 | Plan-tab opt-in | ⚠️ premise was wrong — see below | `25c9787` |
+| 8 | Full pass | ⚠️ partial — no browser verification | — |
+
+**260 tests pass** (was 164 at session start). `vite build` clean.
+
+### Three things found by building it that the spec had wrong
+
+1. **§3.4's premise was false.** The Plan tab does *not* auto-generate a
+   persistent plan. `services/training_plan.py` never writes to the store, so
+   `/api/plan/week` and `/api/plan/today` are pure compute — nothing is ever
+   scheduled unprompted, and the Calendar was already the only thing that
+   materialises sessions. Rewriting PlanView to read from `/api/planned` would
+   have deleted a working live projection to fix a problem that didn't exist.
+   **Done instead:** the page now states what it is (a recomputation, not a
+   schedule) and points at the calendar for actually placing sessions.
+2. **`strength_log_type` was silently dropped on save.** It was returned on the
+   suggestion but wasn't a field on `PlannedWorkoutModel`, so pydantic
+   discarded it and "mark as done" would have logged every session as generic
+   `full_body` — throwing away the weakness targeting at the exact moment the
+   work was completed. Fixed + regression test.
+3. **The compliance window was inconsistent.** Rides were counted across the
+   whole Mon–Sun week while pace was measured against days *elapsed*, so a past
+   week queried mid-week credited rides that hadn't happened yet and always
+   read on-pace. Counting now stops at today; `counted_through` is reported
+   separately from `week_end`.
+
+### Verified
+
+- Live against real cached Garmin data: suggestions return HTTP 200, weakest
+  zone resolves (Functional Threshold), its stale-FTP caveat surfaces, and the
+  strength option matches the weakness.
+- Full add-to-calendar round trip: suggest → PUT → read back with the log type
+  intact → overwrite → delete → clean.
+- Compliance against four real past weeks: 98.6 / 325.3 / 252.1 / 398.3 km with
+  3–10 rides each — not inflated, confirming the per-`activity_id` dedup holds.
+
+### NOT verified — needs your eyes
+
+**No browser verification happened.** The Chrome extension did not respond
+across five attempts spread through the session. Everything below is built and
+type-checked but has never been looked at:
+
+- the Add Calendar Entry modal's two-column layout
+- the three suggestion cards' layout, and light/dark rendering
+- the compliance bar on the Plan tab
+- the ✈️ travel markers on calendar days
+
+Static substitutes that did pass: `vite build` clean, and every JSX component
+reference in the six changed files resolves to an import or local declaration.
+
+### Follow-ups this created
+
+- **`CoachPlanModal.jsx` is now orphaned** — superseded by the three-option
+  panel, nothing imports it. Left in place deliberately: removing a working
+  feature is your call, not a side effect. Its endpoint
+  (`POST /api/planned/{date}/coach-plan`) is likewise still live and tested.
+- **A pre-existing HRV fetch bug surfaced in the logs** during smoke testing:
+  `Failed to fetch 'hrv' for 2026-08-04: 'str' object has no attribute 'get'`.
+  The per-field degradation caught it so the snapshot still returned, but the
+  parse itself looks broken. Unrelated to this work; worth its own look.
+
 ## 5. Build order
 
 Bottom-up, each step independently verifiable:
@@ -473,19 +544,18 @@ Bottom-up, each step independently verifiable:
   - Conclusion: no IA redesign needed.
 - [x] **Feature spec above** (this document).
 
+- [x] **Weekly 300km distance compliance tracker** — team requires 300km/week,
+      never surfaced in the app. Service + endpoint + widget, wired into the
+      Plan tab, 13 tests, verified against four real past weeks. Fixed the
+      elapsed-window bug described in §4.5.
+- [x] **The whole calendar/suggestions feature** — all eight steps of §5, see
+      the status table in §4.5.
+
 ## In progress
 
-- [ ] **Weekly 300km distance compliance tracker** — team requires 300km/week,
-      never surfaced in the app. Partially built, *not yet verified*:
-  - [x] `services/training_compliance.py` — Mon–Sun window, dedups by
-        `activity_id` (the `data_query.py` pattern), returns distance/target/pace.
-  - [x] `GET /api/plan/compliance`
-  - [x] `api.js` → `planCompliance()`
-  - [x] `WeeklyDistanceCompliance.jsx` (progress bar, on-pace/behind copy)
-  - [ ] Wire into `PlanView.jsx`
-  - [ ] `vite build` + browser verify (light + dark)
-  - [ ] Smoke test against real cached activity data
-  - [ ] Needs `.compliance-*` CSS — written against classes that don't exist yet
+- [ ] Nothing. Next work is whichever backlog item you want picked up — or the
+      browser verification in §4.5, which needs the Chrome extension to
+      respond.
 
 ## Backlog (rough priority)
 
