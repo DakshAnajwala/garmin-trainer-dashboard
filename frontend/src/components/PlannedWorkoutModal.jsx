@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { api } from "../api";
 import WorkoutPreviewChart from "./WorkoutPreviewChart";
 
 // Click a planned day → this. intervals.icu-style: see the workout, its step
@@ -14,7 +15,10 @@ const SESSION_TYPES = [
   ["intervals", "Intervals"],
   ["long_ride", "Long ride"],
   ["team_ride", "Team ride"],
+  ["strength", "Strength"],
   ["rest", "Rest"],
+  ["sick", "Sick"],
+  ["note", "Note"],
   ["custom", "Custom"],
 ];
 
@@ -34,6 +38,26 @@ export default function PlannedWorkoutModal({ date, planned, ftpWatts, onSave, o
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(planned);
   const [busy, setBusy] = useState(false);
+  const [loggedDone, setLoggedDone] = useState(false);
+
+  // A planned strength session and a completed one live in different stores on
+  // purpose (one is a single-entry-per-day calendar item, the other a
+  // many-per-day history feeding trends). This is the one place they meet, so
+  // marking a planned session done doesn't mean re-typing it into the log.
+  const markStrengthDone = async () => {
+    setBusy(true);
+    try {
+      await api.logStrength({
+        session_type: planned.strength_log_type || "full_body",
+        duration_min: planned.duration_min ?? null,
+        notes: planned.title,
+        date,
+      });
+      setLoggedDone(true);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   // A fresh planned prop (different day clicked) resets the modal's state.
   useEffect(() => {
@@ -237,6 +261,11 @@ export default function PlannedWorkoutModal({ date, planned, ftpWatts, onSave, o
             )}
 
             <div className="modal-actions">
+              {planned.session_type === "strength" && (
+                <button className="primary-btn" onClick={markStrengthDone} disabled={busy || loggedDone}>
+                  {loggedDone ? "✓ Logged" : busy ? "Logging…" : "Mark as done"}
+                </button>
+              )}
               <button className="primary-btn" onClick={() => setEditing(true)}>
                 Edit
               </button>

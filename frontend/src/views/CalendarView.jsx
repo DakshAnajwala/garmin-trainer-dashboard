@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import CoachPlanModal from "../components/CoachPlanModal";
+import AddCalendarEntryModal from "../components/AddCalendarEntryModal";
 import PlannedWorkoutModal from "../components/PlannedWorkoutModal";
-import TodaySuggestionPanel from "../components/TodaySuggestionPanel";
 import { toIsoDateLocal } from "../dateUtils";
 import { useRedact } from "../redactContext";
 
@@ -16,6 +15,10 @@ const PLANNED_COLOR = {
   intervals: "var(--warning)",
   team_ride: "var(--good)",
   long_ride: "var(--serious, #ec835a)",
+  // Strength is a different modality, so it must not read as a bike session.
+  strength: "var(--violet, #4a3aa7)",
+  sick: "var(--critical)",
+  note: "var(--text-muted)",
 };
 
 const TYPE_ICON = {
@@ -62,14 +65,23 @@ export default function CalendarView() {
   const [busy, setBusy] = useState(false);
   const [ftpWatts, setFtpWatts] = useState(null);
   const [modalDate, setModalDate] = useState(null); // which planned day's edit modal is open
-  const [coachPlanDate, setCoachPlanDate] = useState(null); // which day's "let my coach plan" is open
-  const [libraryOpenFor, setLibraryOpenFor] = useState(null); // which day's "add from library" picker is open
-  const [suggestFor, setSuggestFor] = useState(null); // which day's "what should I do?" panel is open
+  const [entryDate, setEntryDate] = useState(null); // which day's "add calendar entry" picker is open
   const [library, setLibrary] = useState([]);
+  const [travelWindows, setTravelWindows] = useState([]);
 
   useEffect(() => {
     api.listWorkouts().then(setLibrary).catch(() => {});
   }, []);
+
+  // Travel windows already override the plan for the days they cover, but were
+  // invisible here — so the calendar disagreed with the plan without saying why.
+  const loadTravel = () =>
+    api.getConstraints().then((c) => setTravelWindows(c.travel_windows || [])).catch(() => {});
+  useEffect(() => {
+    loadTravel();
+  }, []);
+
+  const isTravelDay = (iso) => travelWindows.some((w) => w.start <= iso && iso <= w.end);
 
   // FTP so the step editor can show target watts, not just %FTP. Cheap, cached.
   useEffect(() => {
@@ -90,10 +102,9 @@ export default function CalendarView() {
   useEffect(() => {
     setError(null);
     setSelected(null);
-    // Clear the day-scoped panels too, or navigating away and back re-opens
-    // them on the same date without the athlete having asked.
-    setSuggestFor(null);
-    setLibraryOpenFor(null);
+    // Clear the day-scoped modal too, or navigating away and back re-opens it
+    // on the same date without the athlete having asked.
+    setEntryDate(null);
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monthDate]);
@@ -117,48 +128,12 @@ export default function CalendarView() {
     }
   };
 
-  // "Add a workout": drop a blank structured session on the day and open it
-  // straight into the edit modal — building it IS the point, not naming it first.
-  const addBlankWorkout = async (dayIso) => {
-    setBusy(true);
-    try {
-      await api.savePlanned(dayIso, {
-        session_type: "custom", title: "New workout", detail: "", source: "custom",
-        steps: [{ duration_sec: 300, target_type: "steady", target_low_pct_ftp: 0.75 }],
-      });
-      await reload();
-      setModalDate(dayIso);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const addFromLibrary = async (dayIso, savedWorkout) => {
-    setBusy(true);
-    try {
-      await api.savePlanned(dayIso, {
-        session_type: "custom",
-        title: savedWorkout.name,
-        detail: savedWorkout.description || "",
-        source: "custom",
-        steps: savedWorkout.steps,
-      });
-      setLibraryOpenFor(null);
-      await reload();
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const savePlanned = async (dayIso, workout) => {
     await api.savePlanned(dayIso, workout);
     await reload();
-  };
-
-  const confirmCoachPlan = async (dayIso, workout) => {
-    await api.savePlanned(dayIso, workout);
-    setCoachPlanDate(null);
-    await reload();
+    // A blank structured workout is only a starting point — open it straight
+    // into the step editor, since building it IS the point.
+    if (workout.title === "New workout") setModalDate(dayIso);
   };
 
   const deletePlanned = async (dayIso) => {
@@ -224,7 +199,10 @@ export default function CalendarView() {
               onClick={() => setSelected(iso)}
               onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setSelected(iso)}
             >
-              <span className="calendar-day-num">{d.getDate()}</span>
+              <span className="calendar-day-num">
+                {d.getDate()}
+                {isTravelDay(iso) && <span title="Travel — the planner works around this"> ✈️</span>}
+              </span>
               {planned && (
                 // Clicking the workout opens the edit/delete modal directly;
                 // stopPropagation so it doesn't also just select the day.
@@ -274,54 +252,12 @@ export default function CalendarView() {
             </button>
           ) : (
             <div className="day-menu">
-              <div className="caption">No planned session — what would you like to do?</div>
+              <div className="caption">Nothing planned for this day.</div>
               <div className="day-menu-options">
-                <button
-                  className="primary-btn"
-                  onClick={() => setSuggestFor(suggestFor === selected ? null : selected)}
-                  disabled={busy}
-                >
-                  🧠 What should I do{selected === todayIso ? " today" : ""}?
-                </button>
-                <button className="followup-btn" onClick={() => addBlankWorkout(selected)} disabled={busy}>
-                  📝 Add a workout
-                </button>
-                <button
-                  className="followup-btn"
-                  onClick={() => setLibraryOpenFor(libraryOpenFor === selected ? null : selected)}
-                  disabled={busy || library.length === 0}
-                  title={library.length === 0 ? "No saved workouts yet — build one in the Builder tab" : undefined}
-                >
-                  📚 Add from my library
-                </button>
-                <button className="followup-btn" onClick={() => setCoachPlanDate(selected)} disabled={busy}>
-                  🧠 Let my coach plan for me
-                </button>
-                <button className="followup-btn" onClick={() => generateWeek(selected)} disabled={busy}>
-                  ✨ Generate this week
+                <button className="primary-btn" onClick={() => setEntryDate(selected)} disabled={busy}>
+                  ＋ Add calendar entry
                 </button>
               </div>
-
-              {libraryOpenFor === selected && (
-                <div className="day-menu-library">
-                  {library.map((w) => (
-                    <button key={w.id} className="followup-btn" onClick={() => addFromLibrary(selected, w)} disabled={busy}>
-                      {w.name} ({w.steps.length} steps)
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {suggestFor === selected && (
-                <TodaySuggestionPanel
-                  date={selected}
-                  ftpWatts={redacted ? null : ftpWatts}
-                  onAdded={async () => {
-                    setSuggestFor(null);
-                    await reload();
-                  }}
-                />
-              )}
             </div>
           )}
           {data[selected].activities.length === 0 ? (
@@ -357,12 +293,18 @@ export default function CalendarView() {
         />
       )}
 
-      {coachPlanDate && (
-        <CoachPlanModal
-          date={coachPlanDate}
+      {entryDate && (
+        <AddCalendarEntryModal
+          date={entryDate}
           ftpWatts={redacted ? null : ftpWatts}
-          onConfirm={confirmCoachPlan}
-          onClose={() => setCoachPlanDate(null)}
+          library={library}
+          onSavePlanned={savePlanned}
+          onGenerateWeek={generateWeek}
+          onChanged={async () => {
+            await reload();
+            await loadTravel();
+          }}
+          onClose={() => setEntryDate(null)}
         />
       )}
     </div>

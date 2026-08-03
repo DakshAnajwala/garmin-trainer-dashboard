@@ -1080,7 +1080,8 @@ async def calendar(start: str, end: str) -> dict[str, dict[str, Any]]:
 
 
 class PlannedWorkoutModel(BaseModel):
-    session_type: str = "endurance"  # rest | endurance | intervals | team_ride | long_ride | custom
+    # rest | endurance | intervals | team_ride | long_ride | strength | sick | note | custom
+    session_type: str = "endurance"
     title: str
     detail: str = ""
     duration_min: Optional[int] = None
@@ -1088,6 +1089,11 @@ class PlannedWorkoutModel(BaseModel):
     target_watts_high: Optional[int] = None
     steps: list[WorkoutStep] = []
     source: str = "custom"
+    #: Strength sessions only. Carried on the planned session so "mark as done"
+    #: can write a /api/strength entry with the focus the suggestion actually
+    #: chose, instead of defaulting everything to full_body and losing the
+    #: weakness targeting the moment the athlete completes it.
+    strength_log_type: Optional[str] = None
 
 
 @app.get("/api/planned")
@@ -1263,6 +1269,7 @@ def _option_payload(option: day_planner.SuggestedOption) -> dict[str, Any]:
             "target_watts_high": option.target_watts_high,
             "steps": option.steps,
             "source": "coach",
+            "strength_log_type": option.strength_log_type,
         },
     }
 

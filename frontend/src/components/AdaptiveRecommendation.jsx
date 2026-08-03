@@ -31,7 +31,8 @@ export default function AdaptiveRecommendation({ onApplied }) {
   if (!rec) return null;
 
   return (
-    <div className={`adaptive-rec ${rec.should_change ? "adaptive-rec-actionable" : ""}`}>
+    <div className={`adaptive-rec ${rec.should_change ? "adaptive-rec-actionable" : ""}`} style={{ flexDirection: "column", alignItems: "stretch" }}>
+      <strong style={{ fontSize: 13 }}>Block phase</strong>
       <div className="adaptive-rec-text">{rec.reason}</div>
       {rec.should_change && (
         <button className="primary-btn" onClick={apply} disabled={applying}>

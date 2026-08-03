@@ -92,6 +92,18 @@ class TestPayloadCompleteness:
             assert p["strength_log_type"] in valid
             assert p["workout"]["session_type"] == "strength"
 
+    @pytest.mark.parametrize("weakest", WEAKNESSES)
+    def test_the_log_type_survives_the_save(self, weakest):
+        """Regression: strength_log_type was returned on the option but wasn't
+        a field on PlannedWorkoutModel, so pydantic dropped it on save and
+        "mark as done" fell back to full_body — silently throwing away the
+        weakness targeting at the exact moment the session was completed."""
+        payloads = _payloads(date(2026, 8, 4), "TRAIN", {}, weakest=weakest)
+        strength = next(p for p in payloads if p["kind"] == "strength")
+        saved = PlannedWorkoutModel(**strength["workout"])
+        assert saved.strength_log_type == strength["strength_log_type"]
+        assert saved.strength_log_type is not None
+
     def test_non_strength_options_carry_no_strength_fields(self):
         for p in _payloads(date(2026, 8, 4), "TRAIN", {}):
             if p["kind"] != "strength":
