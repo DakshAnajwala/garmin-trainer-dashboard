@@ -27,11 +27,15 @@ export default function WeeklyDistanceCompliance() {
       <div className="compliance-bar">
         <div className={`compliance-bar-fill compliance-${tone}`} style={{ width: `${pct}%` }} />
       </div>
-      {!c.met && (
+      {c.met ? (
+        <div className="caption">Target met for the week ({c.rides} ride{c.rides === 1 ? "" : "s"}).</div>
+      ) : c.days_remaining === 0 ? (
+        // The week is over; there is no pace left to be on or behind.
+        <div className="caption">Week finished {c.remaining_km} km short of the 300 km minimum.</div>
+      ) : (
         <div className="caption">
-          {c.on_pace
-            ? `On pace — ${c.remaining_km} km to go.`
-            : `Behind pace — ${c.remaining_km} km to go in ${c.days_remaining} day(s).`}
+          {c.on_pace ? "On pace" : "Behind pace"} — {c.remaining_km} km to go in {c.days_remaining} day
+          {c.days_remaining === 1 ? "" : "s"}.
         </div>
       )}
     </div>

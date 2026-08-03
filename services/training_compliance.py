@@ -27,7 +27,11 @@ def _week_bounds(today: date_) -> tuple[date_, date_]:
 def week_distance_km(today: date_ | None = None) -> dict[str, Any]:
     today = today or date_.today()
     monday, sunday = _week_bounds(today)
-    start, end = monday.isoformat(), sunday.isoformat()
+    # Count only up to `today`, not to Sunday. "Distance so far" has to be
+    # measured over the same window as the pace it's compared against —
+    # otherwise asking about a past week mid-week credits rides that hadn't
+    # happened yet against a shorter elapsed period and always reads on-pace.
+    start, end = monday.isoformat(), min(today, sunday).isoformat()
 
     by_activity: dict[str, float] = {}
     for metric in ("activities_list_large", "activities_list"):
@@ -51,8 +55,11 @@ def week_distance_km(today: date_ | None = None) -> dict[str, Any]:
     on_pace = total_km >= expected_by_now_km
 
     return {
-        "week_start": start,
-        "week_end": end,
+        "week_start": monday.isoformat(),
+        "week_end": sunday.isoformat(),
+        # Where counting stopped. Equals week_end only once the week is over —
+        # distinct from it so the UI can label the window honestly.
+        "counted_through": end,
         "target_km": WEEKLY_DISTANCE_TARGET_KM,
         "distance_km": total_km,
         "remaining_km": remaining_km,

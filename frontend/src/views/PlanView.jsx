@@ -4,6 +4,7 @@ import AdaptiveRecommendation from "../components/AdaptiveRecommendation";
 import ConstraintsPanel from "../components/ConstraintsPanel";
 import ReflowPanel from "../components/ReflowPanel";
 import StrengthLog from "../components/StrengthLog";
+import WeeklyDistanceCompliance from "../components/WeeklyDistanceCompliance";
 import { useRedact, redactSensitiveText } from "../redactContext";
 
 const SESSION_BADGE = {
@@ -72,6 +73,17 @@ export default function PlanView() {
 
   return (
     <div className="view-grid">
+      {/* This page computes a template week on the fly; it schedules nothing.
+          Without saying so, a full week of prescribed sessions reads as "the
+          app has planned my week", which is exactly the impression the
+          calendar's opt-in generate flow exists to avoid. */}
+      <div className="caption">
+        A projection of what your week would look like, recomputed live — nothing here is scheduled.
+        Use <strong>Calendar → Add calendar entry</strong> to actually put a session on a day.
+      </div>
+
+      <WeeklyDistanceCompliance />
+
       <div className="plan-header">
         <label>
           Block week (1&ndash;4, week 4 = recovery):{" "}
