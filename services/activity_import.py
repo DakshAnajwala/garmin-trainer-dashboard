@@ -14,12 +14,16 @@ view, which imported activities simply don't support.
 """
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from typing import Any, Optional
 
 import fitparse
 import gpxpy
+# Uploaded files are untrusted input. stdlib ElementTree doesn't resolve
+# external entities, but it IS vulnerable to entity-expansion DoS ("billion
+# laughs"), so parse with defusedxml — same choice services/route_demand.py
+# already makes for GPX routes.
+from defusedxml import ElementTree as ET
 
 _SUPPORTED_EXTENSIONS = {"fit", "gpx", "tcx"}
 

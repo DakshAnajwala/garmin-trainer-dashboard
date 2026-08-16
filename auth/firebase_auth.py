@@ -6,18 +6,39 @@ different Google account (or a forged/replayed one) still can't get in.
 """
 from __future__ import annotations
 
+import logging
+
 from fastapi import Header, HTTPException
 from firebase_admin import auth as firebase_auth_sdk
 
 from config import firebase_app
 from config.settings import settings
 
+logger = logging.getLogger(__name__)
+
 
 async def verify_token(authorization: str = Header(default="")) -> dict:
     app = firebase_app.get_app()
     if app is None:
-        # Firebase not configured (local dev before setup, or FIREBASE_CREDENTIALS_PATH
-        # unset) — let requests through unauthenticated rather than lock out local dev.
+        # Firebase not configured (local dev before setup, or a deploy whose
+        # FIREBASE_CREDENTIALS_PATH is unset/wrong). There is nothing to verify
+        # a token against, so fail CLOSED by default: an unconfigured deploy
+        # would otherwise serve the full Garmin health history to anyone, with
+        # no error and no log line to notice it by.
+        if not settings.allow_unauthenticated_local_dev:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Firebase auth is not configured, so requests cannot be authenticated. "
+                    "Set FIREBASE_CREDENTIALS_PATH (see SETUP.md), or set "
+                    "ALLOW_UNAUTHENTICATED_LOCAL_DEV=true to run without auth on localhost."
+                ),
+            )
+        logger.warning(
+            "Serving an UNAUTHENTICATED request: Firebase is not configured and "
+            "ALLOW_UNAUTHENTICATED_LOCAL_DEV is on. Never use this setting on a "
+            "network-reachable deployment."
+        )
         return {"uid": "local-dev", "email": None}
 
     if not authorization.startswith("Bearer "):

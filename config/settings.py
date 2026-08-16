@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     # Google account that signs in is accepted — fine for pure local use, but
     # set it before exposing the app to the internet.
     allowed_email: str = Field(default="", alias="ALLOWED_EMAIL")
+    # When Firebase isn't configured, auth has nothing to verify against. The
+    # app used to silently let every request through in that state, which is a
+    # quiet way to serve your whole health history unauthenticated if a deploy
+    # ever loses its credentials. Now it fails CLOSED unless you opt in here.
+    allow_unauthenticated_local_dev: bool = Field(
+        default=False, alias="ALLOW_UNAUTHENTICATED_LOCAL_DEV"
+    )
 
     # --- Garmin MCP server (garmin_mcp/garmin_client.py) ---
     garmin_mcp_command: str = Field(default="npx", alias="GARMIN_MCP_COMMAND")
