@@ -53,7 +53,7 @@ _HARD_WORKOUT_TYPES = set(WORKOUT_TYPES) - {"endurance"}
 #: Coggan row label -> the catalog type that targets that duration's system.
 #: Every row now has a real prescription. The Neuromuscular row used to fall
 #: back to `anaerobic` and say so in the reason string, which meant the most
-#: likely weakness for a first-year Cat 3/4 rider was the one the app couldn't
+#: likely weakness for a sprinter-leaning amateur was the one the app couldn't
 #: actually train; services/workout_types.py gained a sprint template to close
 #: that, so this map no longer needs an apology in it.
 _COGGAN_ROW_TO_TYPE = {
@@ -161,11 +161,12 @@ def _avoid_stacking(workout_type: str, reason: str, planned_this_week: dict[str,
 # and a threshold rider's gap do not call for the same session, so the weakest
 # Coggan row drives the prescription rather than a generic "do some strength".
 #
-# HARD FRAMING RULE, do not relax: this athlete is 57kg, first year racing, and
-# is deliberately trying to ADD absolute power and mass — W/kg in this app is
-# tracked against today's logged weight for exactly that reason. No strength
-# text may be framed around losing weight, leanness, or "getting lighter".
-# Frame everything as force, absolute power and durability.
+# HARD FRAMING RULE, do not relax: this app assumes the athlete is trying to ADD
+# absolute power and mass, not cut to a race weight — W/kg is tracked against
+# today's logged weight for exactly that reason, and athlete_profile's
+# floor_weight_kg exists as a guard rail against advice drifting the wrong way.
+# No strength text may be framed around losing weight, leanness, or "getting
+# lighter". Frame everything as force, absolute power and durability.
 
 #: How hard the gym session is allowed to be today, hardest first. A cap is a
 #: ceiling on the prescription below, never a change of focus — the weakness

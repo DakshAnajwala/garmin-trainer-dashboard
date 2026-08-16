@@ -1,7 +1,11 @@
 import ReactECharts from "echarts-for-react";
 import { colors } from "../theme";
 
-export default function WeightTrendChart({ history }) {
+// floorKg is the athlete's own guard-rail weight from config/athlete_profile.json
+// (a gitignored file), NOT a constant — hardcoding one person's floor here both
+// leaked their bodyweight into the repo and silently drew the wrong line for
+// anyone else running this. Omitted → no reference line at all.
+export default function WeightTrendChart({ history, floorKg = null }) {
   const dates = history.map((h) => h[0]);
   const weights = history.map((h) => h[1]);
 
@@ -23,13 +27,15 @@ export default function WeightTrendChart({ history }) {
         itemStyle: { color: colors.blue },
         symbol: "circle",
         symbolSize: 8,
-        markLine: {
-          silent: true,
-          symbol: "none",
-          lineStyle: { color: colors.muted, type: "dotted" },
-          label: { formatter: "floor: 57kg", color: colors.muted },
-          data: [{ yAxis: 57 }],
-        },
+        markLine: floorKg
+          ? {
+              silent: true,
+              symbol: "none",
+              lineStyle: { color: colors.muted, type: "dotted" },
+              label: { formatter: `floor: ${floorKg}kg`, color: colors.muted },
+              data: [{ yAxis: floorKg }],
+            }
+          : undefined,
       },
     ],
     tooltip: { trigger: "axis" },

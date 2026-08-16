@@ -26,6 +26,7 @@ export default function ReadinessView() {
   const [fullWeightHistory, setFullWeightHistory] = useState([]);
   const [weightRange, setWeightRange] = useState(defaultRange);
   const [prs, setPrs] = useState(null);
+  const [floorKg, setFloorKg] = useState(null);
   const [error, setError] = useState(null);
 
   const load = async () => {
@@ -42,6 +43,15 @@ export default function ReadinessView() {
       setWeightHistory(weights);
       setFullWeightHistory(fullWeights);
       api.personalRecords().then(setPrs).catch(() => {});
+      // The weight chart's floor line is the athlete's own guard rail, from
+      // config/athlete_profile.json — not a constant. No profile, no line.
+      api
+        .athlete()
+        .then((a) => {
+          const floor = a.declared?.fields?.find((d) => d.key === "floor_weight_kg");
+          setFloorKg(floor?.value ?? null);
+        })
+        .catch(() => {});
     } catch (e) {
       setError(e.message);
     }
@@ -151,7 +161,7 @@ export default function ReadinessView() {
           <h3>Weight trend</h3>
           <TimeRangePicker onChange={setWeightRange} defaultPreset="1M" />
           {filteredWeightHistory.length >= 2 ? (
-            <WeightTrendChart history={filteredWeightHistory} />
+            <WeightTrendChart history={filteredWeightHistory} floorKg={floorKg} />
           ) : (
             <div className="empty-note">Not enough logged weight in this range yet.</div>
           )}

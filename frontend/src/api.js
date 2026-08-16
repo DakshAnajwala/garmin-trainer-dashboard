@@ -44,6 +44,7 @@ export const api = {
     request("/api/plan/block-week", { method: "POST", body: JSON.stringify({ block_week }) }),
   adaptiveRecommendation: () => request("/api/plan/adaptive-recommendation"),
   planCompliance: () => request("/api/plan/compliance"),
+  athlete: () => request("/api/athlete"),
   followups: () => request("/api/coach/followups"),
   analyzeDay: (date) => request(`/api/coach/analyze${date ? `?date=${date}` : ""}`, { method: "POST" }),
   chat: (messages, date) =>

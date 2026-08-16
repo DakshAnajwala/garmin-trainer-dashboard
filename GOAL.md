@@ -69,7 +69,7 @@ duplicating a working subsystem, so the audit matters.
    weakest zone is Neuromuscular, `decide_type()` silently falls back to
    `anaerobic` and admits it in the reason string. For a feature whose whole
    premise is "intervals based on power-curve weaknesses", the most common
-   weakness for a Cat 3/4 sprinter-ish rider having no dedicated prescription
+   weakness for a sprinter-leaning amateur racer having no dedicated prescription
    is the biggest hole in the logic.
 5. **The Plan tab auto-generates.** `PlanView.jsx` calls `api.weekPlan()` /
    `api.todayPlan()` on mount, which builds a template week unprompted. The
@@ -250,12 +250,11 @@ if weekday == FRIDAY and Saturday's team ride is planned:
     → maintenance only (don't arrive at the team ride pre-fatigued)
 ```
 
-🚫 **Framing constraint, non-negotiable:** the athlete is 57kg, first-year
-racing, and their stated strategy is to **gain** absolute power/mass, not cut to
-a race weight. W/kg tracking in this app is already dynamic against today's
-logged weight for exactly this reason. **No strength recommendation may be
-framed as weight loss, leanness, or "getting lighter."** Frame as building
-force, absolute power, and durability.
+🚫 **Framing constraint, non-negotiable:** the athlete's stated strategy is to
+**gain** absolute power/mass, not cut to a race weight. W/kg tracking in this app
+is already dynamic against today's logged weight for exactly this reason. **No
+strength recommendation may be framed as weight loss, leanness, or "getting
+lighter."** Frame as building force, absolute power, and durability.
 
 ## 3. Backend work
 
