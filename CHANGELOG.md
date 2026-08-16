@@ -9,6 +9,59 @@ versioning is [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Security
+
+- **Auth now fails closed.** When Firebase isn't configured there is nothing to
+  verify a token against; the API previously let every request through
+  unauthenticated, silently. It now returns `503` unless
+  `ALLOW_UNAUTHENTICATED_LOCAL_DEV=true` is set explicitly (which logs a warning
+  on every request). An unconfigured deployment can no longer serve the full
+  health history to anyone.
+- Uploaded `.tcx` files are parsed with `defusedxml` instead of stdlib
+  `ElementTree`, closing an entity-expansion (billion-laughs) DoS on the import
+  path. `services/route_demand.py` already did this; the two now agree.
+- Added `SECURITY.md`: threat model, credential handling, the third-party
+  Garmin-package caveat, and private vulnerability reporting.
+
+### Fixed
+
+- `defusedxml` was imported by `services/route_demand.py` but missing from
+  `requirements.txt`, so a fresh `pip install -r requirements.txt` produced a
+  `ModuleNotFoundError` at startup. The app did not run when cloned.
+- Removed personal physiology (bodyweight, racing category) from `GOAL.md`
+  ahead of publication; the design constraints it documents are unchanged.
+
+### Added
+
+- **Neuromuscular sprint workout type** — the power-curve weakness most likely
+  for a sprinter-leaning rider previously had no dedicated prescription and
+  silently fell back to `anaerobic`.
+- **Weakness-driven strength recommendations** — explicit per-weakness rules
+  mapping the weakest Coggan zone to a strength focus, alongside the bike
+  session. Framed as building force and absolute power, never weight loss.
+- **"What should I do today?"** — `GET /api/planned/{date}/suggestions` returns
+  three parallel options (weakness-targeted session, an easier alternative, a
+  strength focus), each with its own rationale, individually addable to the
+  calendar, each with a follow-up question box.
+- **intervals.icu-style Add Calendar Entry picker** — replaces the flat
+  four-button day menu with a categorised modal, and adds strength / rest /
+  note / sick / travel entry types.
+- **300 km/week compliance tracking** (`services/training_compliance.py`) —
+  the club's weekly distance floor, deduplicated by activity ID so cached
+  day-snapshots can't multiple-count a ride.
+- Travel windows from the constraints panel now render on the calendar.
+
+### Changed
+
+- The suggestions panel no longer fires a live AI call every time it opens; the
+  deterministic pick renders immediately and AI enrichment is opt-in per request.
+- The Plan tab is labelled a *projection*, not a committed schedule — only the
+  Calendar holds sessions you've actually confirmed.
+- `MorningBrief` no longer repeats the verdict headline that `VerdictBanner`
+  renders directly beneath it.
+- The block-phase recommendation and the week-reflow panel are now visually
+  distinguishable when stacked on the Plan tab.
+
 ## [0.1.0] — 2026-07-15
 
 First public release.
