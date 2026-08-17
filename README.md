@@ -1,4 +1,4 @@
-# Garmin Trainer Dashboard
+# Praxis
 
 A self-hosted cycling training dashboard. Pulls your Garmin Connect data via
 MCP, combines it with intervals.icu fitness metrics and a Claude-powered coach,

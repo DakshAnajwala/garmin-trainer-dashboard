@@ -55,7 +55,7 @@ from services.workout_export import to_zwo
 
 # Every route requires a valid Firebase ID token (verify_token no-ops if
 # Firebase isn't configured, so local dev without it still works).
-app = FastAPI(title="Garmin Trainer Dashboard API", dependencies=[Depends(verify_token)])
+app = FastAPI(title="Praxis API", dependencies=[Depends(verify_token)])
 
 app.add_middleware(
     CORSMiddleware,
